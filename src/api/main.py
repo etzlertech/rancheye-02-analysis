@@ -234,24 +234,33 @@ async def get_recent_images(limit: int = 20, thumbnail: bool = False):
         print(f"Found {len(images)} images")
         
         # Generate signed URLs for all images
+        import time
+        start_time = time.time()
+        
+        # Check if images already have valid URLs to avoid regenerating
+        urls_generated = 0
         for image in images:
+            # If image already has a URL and it's not expired, skip generation
+            if image.get('image_url') and 'supabase.co' in image.get('image_url', ''):
+                continue
+                
             if image.get('storage_path'):
                 try:
-                    # Always generate fresh signed URL with 1 hour expiration
+                    # Generate fresh signed URL with 1 hour expiration
                     signed_url = supabase.client.storage.from_('spypoint-images').create_signed_url(
                         image['storage_path'],
                         expires_in=3600  # 1 hour
                     )
                     if signed_url and 'signedURL' in signed_url:
-                        url = signed_url['signedURL']
-                        # For now, don't modify the URL - Supabase signed URLs may not support transforms
-                        # TODO: Implement proper thumbnail generation if needed
-                        image['image_url'] = url
-                        print(f"Generated URL for {image['image_id']}: {image['image_url'][:100]}...")
+                        image['image_url'] = signed_url['signedURL']
+                        urls_generated += 1
                 except Exception as e:
                     print(f"Error generating signed URL for {image['image_id']}: {e}")
-                    # Try using the preview endpoint as fallback
-                    image['image_url'] = f"/api/images/{image['image_id']}/preview{'?thumbnail=true' if thumbnail else ''}"
+                    # Use preview endpoint as fallback
+                    image['image_url'] = f"/api/images/{image['image_id']}/preview"
+        
+        if urls_generated > 0:
+            print(f"Generated {urls_generated} new signed URLs in {time.time() - start_time:.2f}s")
         
         return {"images": images}
     except Exception as e:

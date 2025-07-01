@@ -312,7 +312,7 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
     'custom': ''
   };
 
-  // Set up intersection observer for lazy loading
+  // Set up intersection observer with more aggressive loading
   useEffect(() => {
     imageObserver.current = new IntersectionObserver(
       (entries) => {
@@ -323,7 +323,10 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
           }
         });
       },
-      { rootMargin: '50px' }
+      { 
+        rootMargin: '200px', // Load images 200px before they're visible
+        threshold: 0 
+      }
     );
     
     return () => {
@@ -717,8 +720,8 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
                         key={image.image_id}
                         image={image}
                         onSelect={handleSelectImage}
-                        isVisible={visibleImages.has(image.image_id)}
-                        imageObserver={imageObserver.current}
+                        isVisible={true} // Load all images immediately for 20KB files
+                        imageObserver={null} // Skip observer for small images
                         onLoad={() => handleImageLoad(image.image_id)}
                         onError={() => handleImageError(image.image_id)}
                         loadState={imageLoadStates[image.image_id]}
@@ -1149,11 +1152,14 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
   );
 };
 
-// Separate component for image thumbnails with lazy loading
+// Separate component for image thumbnails
 const ImageThumbnail = ({ image, onSelect, isVisible, imageObserver, onLoad, onError, loadState }) => {
   const ref = useRef(null);
   
+  // Skip observer setup if not needed
   useEffect(() => {
+    if (!imageObserver) return;
+    
     const element = ref.current;
     if (element && imageObserver) {
       imageObserver.observe(element);
@@ -1191,7 +1197,9 @@ const ImageThumbnail = ({ image, onSelect, isVisible, imageObserver, onLoad, onE
               src={image.image_url} 
               alt={image.camera_name}
               className="h-full w-full object-cover"
-              loading="lazy"
+              loading="eager" // Load immediately for small images
+              decoding="async" // Don't block rendering
+              fetchpriority="high" // Higher priority for small images
               onLoad={onLoad}
               onError={(e) => {
                 console.error('Failed to load image:', image.image_id, image.image_url);
@@ -1200,7 +1208,7 @@ const ImageThumbnail = ({ image, onSelect, isVisible, imageObserver, onLoad, onE
               style={{
                 display: loadState === 'error' ? 'none' : 'block',
                 opacity: loadState === 'loaded' ? 1 : 0,
-                transition: 'opacity 0.3s ease-in-out'
+                transition: 'opacity 0.15s ease-out' // Even faster transition
               }}
             />
           </>
