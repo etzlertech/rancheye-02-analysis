@@ -247,7 +247,7 @@ async def get_alerts(unacknowledged_only: bool = True):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.put("/api/alerts/{alert_id}/acknowledge")
+@app.post("/api/alerts/{alert_id}/acknowledge")
 async def acknowledge_alert(alert_id: str):
     try:
         supabase.client.table('analysis_alerts').update({
@@ -257,6 +257,48 @@ async def acknowledge_alert(alert_id: str):
         return {"message": "Alert acknowledged"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/analysis/test")
+async def test_analysis(request: dict):
+    """Run a test analysis on an image from storage"""
+    try:
+        image_id = request.get('image_id')
+        analysis_type = request.get('analysis_type', 'general')
+        
+        if not image_id:
+            raise HTTPException(status_code=400, detail="image_id required")
+        
+        # Get image metadata
+        image = await supabase.get_image_metadata(image_id)
+        if not image:
+            raise HTTPException(status_code=404, detail="Image not found")
+        
+        # Create a temporary config for this test
+        test_config = {
+            'analysis_type': analysis_type,
+            'model_provider': 'openai',
+            'model_name': 'gpt-4o-mini',
+            'prompt_template': get_test_prompt(analysis_type)
+        }
+        
+        # Run analysis directly
+        result = await analysis_service.analyze_image(image, test_config)
+        
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def get_test_prompt(analysis_type: str) -> str:
+    """Get prompt template for test analysis types"""
+    prompts = {
+        'gate_detection': 'Analyze this trail camera image and determine if a gate is visible. If a gate is visible, determine if it is OPEN or CLOSED. Respond with JSON: {"gate_visible": boolean, "gate_open": boolean, "confidence": float, "reasoning": "explanation"}',
+        'water_level': 'Analyze this trail camera image for water troughs or containers. Estimate the water level. Respond with JSON: {"water_visible": boolean, "water_level": "FULL|ADEQUATE|LOW|EMPTY", "percentage_estimate": number, "confidence": float, "reasoning": "explanation"}',
+        'animal_detection': 'Analyze this trail camera image for any animals. Respond with JSON: {"animals_detected": boolean, "animals": [{"species": "name", "count": number, "type": "livestock|wildlife", "confidence": float}], "reasoning": "explanation"}',
+        'feed_bin_status': 'Analyze this trail camera image for feed bins or feeders. Respond with JSON: {"feeder_visible": boolean, "feed_level": "FULL|ADEQUATE|LOW|EMPTY", "percentage_estimate": number, "confidence": float, "reasoning": "explanation"}'
+    }
+    return prompts.get(analysis_type, prompts['animal_detection'])
 
 
 @app.get("/api/stats/summary")

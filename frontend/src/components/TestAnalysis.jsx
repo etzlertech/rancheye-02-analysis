@@ -1,12 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import api from '../utils/api';
 
 const TestAnalysis = ({ configs, onAnalysisComplete }) => {
-  const [selectedFile, setSelectedFile] = useState(null);
+  const [images, setImages] = useState([]);
+  const [selectedImage, setSelectedImage] = useState(null);
   const [selectedType, setSelectedType] = useState('gate_detection');
-  const [uploading, setUploading] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState(null);
+  const [loadingImages, setLoadingImages] = useState(false);
+  const [showImagePicker, setShowImagePicker] = useState(false);
 
   const analysisTypes = [
     { value: 'gate_detection', label: 'Gate Detection' },
@@ -15,27 +18,44 @@ const TestAnalysis = ({ configs, onAnalysisComplete }) => {
     { value: 'animal_detection', label: 'Animal Detection' },
   ];
 
-  const handleFileChange = (e) => {
-    setSelectedFile(e.target.files[0]);
+  useEffect(() => {
+    if (showImagePicker) {
+      loadImages();
+    }
+  }, [showImagePicker]);
+
+  const loadImages = async () => {
+    setLoadingImages(true);
+    try {
+      const response = await api.get('/api/images/recent?limit=50');
+      setImages(response.data);
+    } catch (error) {
+      console.error('Error loading images:', error);
+      toast.error('Failed to load images');
+    } finally {
+      setLoadingImages(false);
+    }
+  };
+
+  const handleSelectImage = (image) => {
+    setSelectedImage(image);
+    setShowImagePicker(false);
     setResult(null);
   };
 
-  const handleUpload = async () => {
-    if (!selectedFile) {
-      toast.error('Please select a file');
+  const handleAnalyze = async () => {
+    if (!selectedImage) {
+      toast.error('Please select an image');
       return;
     }
 
-    setUploading(true);
-    const formData = new FormData();
-    formData.append('file', selectedFile);
-    formData.append('analysis_type', selectedType);
+    setAnalyzing(true);
 
     try {
-      const response = await api.post('/api/upload/analyze', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+      // Create a test analysis task
+      const response = await api.post('/api/analysis/test', {
+        image_id: selectedImage.image_id,
+        analysis_type: selectedType
       });
       
       setResult(response.data);
@@ -46,10 +66,10 @@ const TestAnalysis = ({ configs, onAnalysisComplete }) => {
         onAnalysisComplete();
       }, 2000);
     } catch (error) {
-      console.error('Upload error:', error);
+      console.error('Analysis error:', error);
       toast.error('Failed to analyze image');
     } finally {
-      setUploading(false);
+      setAnalyzing(false);
     }
   };
 
@@ -60,15 +80,74 @@ const TestAnalysis = ({ configs, onAnalysisComplete }) => {
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Select Image
+            Select Image from Storage
           </label>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleFileChange}
-            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-          />
+          {selectedImage ? (
+            <div className="border rounded-lg p-3 bg-gray-50">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="font-medium">{selectedImage.camera_name}</p>
+                  <p className="text-sm text-gray-600">{selectedImage.image_id}</p>
+                </div>
+                <button
+                  onClick={() => setShowImagePicker(true)}
+                  className="text-blue-500 hover:text-blue-600 text-sm"
+                >
+                  Change
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowImagePicker(true)}
+              className="w-full border-2 border-dashed border-gray-300 rounded-lg py-4 hover:border-gray-400 transition-colors"
+            >
+              <i className="fa fa-image text-gray-400 text-2xl mb-2"></i>
+              <p className="text-gray-600">Click to select from storage</p>
+            </button>
+          )}
         </div>
+
+        {showImagePicker && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-4xl max-h-[80vh] overflow-hidden">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold">Select Image from Storage</h3>
+                <button
+                  onClick={() => setShowImagePicker(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <i className="fa fa-times text-xl"></i>
+                </button>
+              </div>
+              
+              <div className="overflow-y-auto max-h-[60vh]">
+                {loadingImages ? (
+                  <div className="text-center py-8">
+                    <i className="fa fa-spinner fa-spin text-2xl text-gray-400"></i>
+                    <p className="text-gray-500 mt-2">Loading images...</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-4">
+                    {images.map((image) => (
+                      <div
+                        key={image.image_id}
+                        onClick={() => handleSelectImage(image)}
+                        className="cursor-pointer border rounded-lg p-2 hover:border-blue-500 transition-colors"
+                      >
+                        <div className="bg-gray-200 h-32 rounded flex items-center justify-center">
+                          <i className="fa fa-image text-4xl text-gray-400"></i>
+                        </div>
+                        <p className="text-sm font-medium mt-2 truncate">{image.camera_name}</p>
+                        <p className="text-xs text-gray-500 truncate">{image.image_id}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
         
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -88,15 +167,15 @@ const TestAnalysis = ({ configs, onAnalysisComplete }) => {
         </div>
         
         <button
-          onClick={handleUpload}
-          disabled={!selectedFile || uploading}
+          onClick={handleAnalyze}
+          disabled={!selectedImage || analyzing}
           className={`w-full py-2 px-4 rounded-lg font-medium ${
-            !selectedFile || uploading
+            !selectedImage || analyzing
               ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
               : 'bg-blue-500 hover:bg-blue-600 text-white'
           }`}
         >
-          {uploading ? 'Analyzing...' : 'Upload & Analyze'}
+          {analyzing ? 'Analyzing...' : 'Analyze Image'}
         </button>
         
         {result && (
