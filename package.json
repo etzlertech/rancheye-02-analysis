@@ -1,0 +1,12 @@
+{
+  "name": "rancheye-02-analysis",
+  "version": "1.0.0",
+  "description": "RanchEye Analysis Service",
+  "scripts": {
+    "build": "cd frontend && npm install && npm run build",
+    "start": "python web_server.py"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

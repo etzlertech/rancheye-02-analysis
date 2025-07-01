@@ -10,6 +10,8 @@ cmds = ["pip install -r requirements.txt"]
 [phases.build]
 cmds = [
     "cd frontend && npm install && npm run build && cd ..",
+    "ls -la static/",
+    "ls -la static/dist/ || echo 'No dist folder'",
     "echo 'Frontend build complete'"
 ]
 
