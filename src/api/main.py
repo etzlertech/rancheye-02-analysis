@@ -235,18 +235,20 @@ async def get_recent_images(limit: int = 20):
         
         # Generate signed URLs for all images
         for image in images:
-            if image.get('storage_path') and not image.get('image_url'):
+            if image.get('storage_path'):
                 try:
-                    # Generate signed URL with 1 hour expiration
+                    # Always generate fresh signed URL with 1 hour expiration
                     signed_url = supabase.client.storage.from_('spypoint-images').create_signed_url(
                         image['storage_path'],
                         expires_in=3600  # 1 hour
                     )
                     if signed_url and 'signedURL' in signed_url:
                         image['image_url'] = signed_url['signedURL']
+                        print(f"Generated URL for {image['image_id']}: {image['image_url'][:100]}...")
                 except Exception as e:
                     print(f"Error generating signed URL for {image['image_id']}: {e}")
-                    # Continue with other images even if one fails
+                    # Try using the preview endpoint as fallback
+                    image['image_url'] = f"/api/images/{image['image_id']}/preview"
         
         return {"images": images}
     except Exception as e:

@@ -460,10 +460,20 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
     if (!silent) setLoadingImages(true);
     try {
       const response = await api.get('/api/images/recent?limit=100'); // Load more images
+      console.log('Loaded images:', response.data.images);
+      
+      // Check if images have URLs
+      const imagesWithUrls = response.data.images?.filter(img => img.image_url) || [];
+      const imagesWithoutUrls = response.data.images?.filter(img => !img.image_url) || [];
+      
+      if (imagesWithoutUrls.length > 0) {
+        console.warn(`${imagesWithoutUrls.length} images missing URLs:`, imagesWithoutUrls);
+      }
+      
       setImages(response.data.images || []);
       setLastImageSync(new Date());
       if (!silent) {
-        toast.success(`Loaded ${response.data.images?.length || 0} images`);
+        toast.success(`Loaded ${response.data.images?.length || 0} images (${imagesWithUrls.length} with URLs)`);
       }
     } catch (error) {
       console.error('Error loading images:', error);
@@ -551,17 +561,52 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
           </label>
           {selectedImage ? (
             <div className="border rounded-lg p-3 bg-gray-50">
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="font-medium">{selectedImage.camera_name}</p>
-                  <p className="text-sm text-gray-600">{selectedImage.image_id}</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Image Preview */}
+                <div className="md:col-span-1">
+                  <div className="bg-gray-200 rounded-lg overflow-hidden h-48 relative">
+                    {selectedImage.image_url ? (
+                      <img 
+                        src={selectedImage.image_url} 
+                        alt={selectedImage.camera_name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          console.error('Failed to load image:', selectedImage.image_url);
+                          e.target.style.display = 'none';
+                        }}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <i className="fa fa-image text-4xl text-gray-400"></i>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <button
-                  onClick={() => setShowImagePicker(true)}
-                  className="text-blue-500 hover:text-blue-600 text-sm"
-                >
-                  Change
-                </button>
+                
+                {/* Image Details */}
+                <div className="md:col-span-2 flex justify-between items-start">
+                  <div>
+                    <p className="font-medium text-lg">{selectedImage.camera_name}</p>
+                    <p className="text-sm text-gray-600 mb-1">{selectedImage.image_id}</p>
+                    {selectedImage.captured_at && (
+                      <p className="text-sm text-gray-500">
+                        Captured: {new Date(selectedImage.captured_at).toLocaleString()}
+                      </p>
+                    )}
+                    {selectedImage.storage_path && (
+                      <p className="text-xs text-gray-400 mt-1">
+                        Path: {selectedImage.storage_path}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setShowImagePicker(true)}
+                    className="text-blue-500 hover:text-blue-600 text-sm font-medium"
+                  >
+                    <i className="fa fa-exchange mr-1"></i>
+                    Change Image
+                  </button>
+                </div>
               </div>
             </div>
           ) : (
@@ -634,29 +679,42 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
                         className="cursor-pointer border rounded-lg p-2 hover:border-blue-500 transition-colors"
                       >
                         <div className="bg-gray-200 h-32 rounded flex items-center justify-center overflow-hidden relative">
-                          {/* Loading state */}
-                          {imageLoadStates[image.image_id] !== 'loaded' && imageLoadStates[image.image_id] !== 'error' && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
-                              <i className="fa fa-spinner fa-spin text-2xl text-gray-400"></i>
+                          {/* Always try to load the image */}
+                          {image.image_url ? (
+                            <>
+                              {/* Show spinner until loaded */}
+                              {imageLoadStates[image.image_id] !== 'loaded' && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+                                  <i className="fa fa-spinner fa-spin text-2xl text-gray-400"></i>
+                                </div>
+                              )}
+                              <img 
+                                src={image.image_url} 
+                                alt={image.camera_name}
+                                className="h-full w-full object-cover"
+                                loading="lazy"
+                                onLoad={() => handleImageLoad(image.image_id)}
+                                onError={(e) => {
+                                  console.error(`Failed to load image ${image.image_id}:`, image.image_url);
+                                  handleImageError(image.image_id);
+                                }}
+                                style={{
+                                  display: imageLoadStates[image.image_id] === 'error' ? 'none' : 'block'
+                                }}
+                              />
+                            </>
+                          ) : (
+                            <div className="flex flex-col items-center justify-center">
+                              <i className="fa fa-image text-4xl text-gray-400 mb-2"></i>
+                              <span className="text-xs text-gray-500">No URL</span>
                             </div>
                           )}
                           
-                          {/* Image */}
-                          {image.image_url && imageLoadStates[image.image_id] !== 'error' ? (
-                            <img 
-                              src={image.image_url} 
-                              alt={image.camera_name}
-                              className="h-full w-full object-cover"
-                              loading="lazy"
-                              onLoad={() => handleImageLoad(image.image_id)}
-                              onError={() => handleImageError(image.image_id)}
-                            />
-                          ) : null}
-                          
-                          {/* Error or no URL state */}
-                          {(!image.image_url || imageLoadStates[image.image_id] === 'error') && (
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <i className="fa fa-image text-4xl text-gray-400"></i>
+                          {/* Error state */}
+                          {imageLoadStates[image.image_id] === 'error' && (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-100">
+                              <i className="fa fa-exclamation-triangle text-3xl text-red-400 mb-2"></i>
+                              <span className="text-xs text-red-500">Failed to load</span>
                             </div>
                           )}
                         </div>
