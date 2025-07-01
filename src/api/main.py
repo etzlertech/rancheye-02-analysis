@@ -103,20 +103,32 @@ async def root():
     print(f"Looking for React build at: {react_build_dir}")
     print(f"React index exists: {(react_build_dir / 'index.html').exists()}")
     print(f"Static dir: {static_dir}")
-    print(f"Static dir contents: {list(static_dir.iterdir()) if static_dir.exists() else 'Not found'}")
+    print(f"Static dir exists: {static_dir.exists()}")
+    if static_dir.exists():
+        print(f"Static dir contents: {list(static_dir.iterdir())}")
+        if react_build_dir.exists():
+            print(f"React build dir contents: {list(react_build_dir.iterdir())}")
     
-    # Serve React build or fallback to original dashboard
+    # Serve React build
     react_index = react_build_dir / "index.html"
     if react_index.exists():
+        print(f"Serving React app from: {react_index}")
         return FileResponse(str(react_index))
     
-    # Fallback to original dashboard
+    # If no React build, try serving ANY index.html in static
+    static_index = static_dir / "index.html"
+    if static_index.exists():
+        print(f"Serving static index from: {static_index}")
+        return FileResponse(str(static_index))
+    
+    # Last resort: old HTML
     html_file = static_dir / "index-old.html"
     if html_file.exists():
+        print(f"Serving old HTML from: {html_file}")
         return FileResponse(str(html_file))
     
     # If no UI found, return API status
-    return {"message": "RanchEye Analysis API", "status": "running", "ui": "not found", "checked": str(react_index)}
+    return {"message": "RanchEye Analysis API", "status": "running", "ui": "not found", "react_dir": str(react_build_dir), "static_dir": str(static_dir)}
 
 
 @app.get("/health")
