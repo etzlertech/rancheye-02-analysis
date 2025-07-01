@@ -695,7 +695,7 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
                                 loading="lazy"
                                 onLoad={() => handleImageLoad(image.image_id)}
                                 onError={(e) => {
-                                  console.error(`Failed to load image ${image.image_id}:`, image.image_url);
+                                  console.error('Failed to load image ' + image.image_id + ':', image.image_url);
                                   handleImageError(image.image_id);
                                 }}
                                 style={{
