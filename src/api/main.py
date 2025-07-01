@@ -133,7 +133,28 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
+    # Check environment variables
+    env_status = {
+        "SUPABASE_URL": bool(os.getenv('SUPABASE_URL')),
+        "SUPABASE_KEY": bool(os.getenv('SUPABASE_KEY')),
+        "SUPABASE_SERVICE_ROLE_KEY": bool(os.getenv('SUPABASE_SERVICE_ROLE_KEY')),
+    }
+    
+    # Try to connect to Supabase
+    db_status = "unknown"
+    try:
+        # Simple query to test connection
+        response = supabase.client.table('spypoint_images').select('id').limit(1).execute()
+        db_status = "connected"
+    except Exception as e:
+        db_status = f"error: {str(e)}"
+    
+    return {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat(),
+        "env_vars": env_status,
+        "database": db_status
+    }
 
 
 @app.get("/api/configs")
