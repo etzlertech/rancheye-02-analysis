@@ -394,14 +394,32 @@ async def test_analysis(request: dict):
         # Format response for frontend
         primary_result = result.get('primary_result')
         if primary_result:
+            # Log the raw response for debugging
+            print(f"Analysis completed. Raw response: {primary_result.raw_response[:200]}...")
+            print(f"Parsed data: {result['final_result']}")
+            
+            # Ensure we have a valid result
+            final_result = result['final_result']
+            if not final_result or (isinstance(final_result, dict) and len(final_result) == 0):
+                # Try to parse the raw response if final_result is empty
+                try:
+                    import json
+                    final_result = json.loads(primary_result.raw_response)
+                except:
+                    final_result = {
+                        'error': 'Failed to parse AI response',
+                        'raw_response': primary_result.raw_response[:500]
+                    }
+            
             return {
                 'analysis_type': analysis_type,
-                'confidence': result['final_result'].get('confidence', 0.95),
+                'confidence': final_result.get('confidence', 0.95) if isinstance(final_result, dict) else 0.95,
                 'model_provider': test_config['model_provider'],
                 'model_name': test_config['model_name'],
-                'result': result['final_result'],
+                'result': final_result,
                 'tokens_used': primary_result.tokens_used,
-                'processing_time_ms': primary_result.processing_time_ms
+                'processing_time_ms': primary_result.processing_time_ms,
+                'raw_response': primary_result.raw_response  # Include for debugging
             }
         else:
             return {
@@ -409,7 +427,7 @@ async def test_analysis(request: dict):
                 'confidence': 0,
                 'model_provider': test_config['model_provider'],
                 'model_name': test_config['model_name'],
-                'result': {'error': 'Analysis failed'},
+                'result': {'error': 'Analysis failed - no result returned'},
                 'tokens_used': 0,
                 'processing_time_ms': 0
             }
@@ -420,10 +438,58 @@ async def test_analysis(request: dict):
 def get_test_prompt(analysis_type: str) -> str:
     """Get prompt template for test analysis types"""
     prompts = {
-        'gate_detection': 'Analyze this trail camera image and determine if a gate is visible. If a gate is visible, determine if it is OPEN or CLOSED. Provide detailed reasoning for your decision. Respond with JSON: {"gate_visible": boolean, "gate_open": boolean, "confidence": float between 0-1, "reasoning": "detailed explanation of what you see and why you made this decision", "visual_evidence": "specific visual details that support your conclusion"}',
-        'water_level': 'Analyze this trail camera image for water troughs or containers. Estimate the water level and provide detailed reasoning. Respond with JSON: {"water_visible": boolean, "water_level": "FULL|ADEQUATE|LOW|EMPTY", "percentage_estimate": number 0-100, "confidence": float between 0-1, "reasoning": "detailed explanation of your assessment", "visual_evidence": "specific visual details about water color, reflections, container fill level"}',
-        'animal_detection': 'Analyze this trail camera image for any animals. Provide detailed information about each animal detected. Respond with JSON: {"animals_detected": boolean, "animals": [{"species": "name", "count": number, "type": "livestock|wildlife", "confidence": float, "location": "where in image", "behavior": "what they are doing"}], "reasoning": "detailed explanation of identifications", "visual_evidence": "specific features used for identification"}',
-        'feed_bin_status': 'Analyze this trail camera image for feed bins or feeders. Assess the feed level and condition. Respond with JSON: {"feeder_visible": boolean, "feed_level": "FULL|ADEQUATE|LOW|EMPTY", "percentage_estimate": number 0-100, "confidence": float between 0-1, "reasoning": "detailed explanation of assessment", "visual_evidence": "specific visual details about feed visibility and bin condition", "concerns": "any issues noticed"}'
+        'gate_detection': '''You are analyzing a trail camera image from a ranch. Look for any gates in the image and determine their status.
+
+Analyze the image and respond ONLY with valid JSON in this exact format:
+{
+  "gate_visible": true or false,
+  "gate_open": true or false (null if no gate visible),
+  "confidence": 0.0 to 1.0,
+  "reasoning": "Detailed explanation of what you see in the image and why you made this decision",
+  "visual_evidence": "Specific visual details that support your conclusion (e.g., gate posts, hinges, gaps, shadows)"
+}''',
+        'water_level': '''You are analyzing a trail camera image from a ranch. Look for water troughs, tanks, or containers and assess the water level.
+
+Analyze the image and respond ONLY with valid JSON in this exact format:
+{
+  "water_visible": true or false,
+  "water_level": "FULL" or "ADEQUATE" or "LOW" or "EMPTY" (null if no water container visible),
+  "percentage_estimate": 0 to 100 (null if not applicable),
+  "confidence": 0.0 to 1.0,
+  "reasoning": "Detailed explanation of your water level assessment",
+  "visual_evidence": "Specific details about water color, reflections, container fill line, or moisture marks"
+}''',
+        'animal_detection': '''You are analyzing a trail camera image from a ranch. Identify any animals in the image.
+
+Analyze the image and respond ONLY with valid JSON in this exact format:
+{
+  "animals_detected": true or false,
+  "animals": [
+    {
+      "species": "specific animal name",
+      "count": number of this species visible,
+      "type": "livestock" or "wildlife",
+      "confidence": 0.0 to 1.0,
+      "location": "where in the image (e.g., left foreground, center background)",
+      "behavior": "what the animal is doing (e.g., grazing, walking, resting)"
+    }
+  ],
+  "confidence": 0.0 to 1.0,
+  "reasoning": "Detailed explanation of how you identified each animal",
+  "visual_evidence": "Specific features used for identification (e.g., body shape, coloring, size)"
+}''',
+        'feed_bin_status': '''You are analyzing a trail camera image from a ranch. Look for feed bins, feeders, or hay storage and assess their status.
+
+Analyze the image and respond ONLY with valid JSON in this exact format:
+{
+  "feeder_visible": true or false,
+  "feed_level": "FULL" or "ADEQUATE" or "LOW" or "EMPTY" (null if no feeder visible),
+  "percentage_estimate": 0 to 100 (null if not applicable),
+  "confidence": 0.0 to 1.0,
+  "reasoning": "Detailed explanation of your feed level assessment",
+  "visual_evidence": "Specific details about feed visibility, bin shadows, or fill indicators",
+  "concerns": "Any maintenance issues, damage, or other concerns noticed (null if none)"
+}'''
     }
     return prompts.get(analysis_type, prompts['animal_detection'])
 
