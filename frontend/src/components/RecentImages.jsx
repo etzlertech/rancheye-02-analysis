@@ -73,11 +73,11 @@ const RecentImages = ({ images, loading, onAnalyze }) => {
                   
                   {/* Status badge */}
                   <div className="absolute top-2 right-2">
-                    <span className={`px-2 py-1 rounded text-xs ${
+                    <span className={
                       image.analysis_count > 0 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-yellow-100 text-yellow-800'
-                    }`}>
+                        ? 'px-2 py-1 rounded text-xs bg-green-100 text-green-800' 
+                        : 'px-2 py-1 rounded text-xs bg-yellow-100 text-yellow-800'
+                    }>
                       {image.analysis_count > 0 ? 'Analyzed' : 'New'}
                     </span>
                   </div>
@@ -126,11 +126,11 @@ const RecentImages = ({ images, loading, onAnalyze }) => {
                       {formatDistanceToNow(new Date(image.downloaded_at), { addSuffix: true })}
                     </td>
                     <td className="py-2">
-                      <span className={`px-2 py-1 rounded text-xs ${
+                      <span className={
                         image.analysis_count > 0 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
+                          ? 'px-2 py-1 rounded text-xs bg-green-100 text-green-800' 
+                          : 'px-2 py-1 rounded text-xs bg-gray-100 text-gray-800'
+                      }>
                         {image.analysis_count > 0 ? 'Analyzed' : 'New'}
                       </span>
                     </td>
