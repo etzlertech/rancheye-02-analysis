@@ -2,20 +2,32 @@ import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import api from '../utils/api';
 
-// Helper function to calculate actual cost
-const calculateActualCost = (modelName, tokens) => {
+// Helper function to calculate actual cost with proper input/output token pricing
+const calculateActualCost = (modelName, inputTokens, outputTokens) => {
+  // Official pricing as of 2024 (per 1M tokens)
   const costs = {
-    'gpt-4o-mini': { input: 0.15, output: 0.60 },
-    'gpt-4o': { input: 5.00, output: 15.00 },
-    'gemini-1.5-flash': { input: 0.35, output: 1.05 },
-    'gemini-2.0-flash-exp': { input: 0.00, output: 0.00 },
-    'gemini-2.5-pro': { input: 3.50, output: 10.50 }
+    'gpt-4o-mini': { input: 0.15, output: 0.60 },          // $0.15/$0.60 per 1M tokens
+    'gpt-4o': { input: 5.00, output: 15.00 },              // $5.00/$15.00 per 1M tokens  
+    'gemini-1.5-flash': { input: 0.10, output: 0.40 },     // $0.10/$0.40 per 1M tokens
+    'gemini-2.0-flash-exp': { input: 0.00, output: 0.00 }, // Free during preview
+    'gemini-2.5-pro': { input: 1.25, output: 10.00 }       // $1.25/$10.00 per 1M tokens (≤200k context)
   };
   
   const modelCost = costs[modelName] || { input: 0, output: 0 };
-  // Estimate 50/50 split between input and output tokens
-  const estimatedCost = (tokens / 2000000) * (modelCost.input + modelCost.output);
-  return estimatedCost.toFixed(6);
+  const inputCost = (inputTokens / 1000000) * modelCost.input;
+  const outputCost = (outputTokens / 1000000) * modelCost.output;
+  return (inputCost + outputCost).toFixed(6);
+};
+
+// Helper function to estimate image tokens for OpenAI models
+const estimateImageTokens = (imageSize = 'low') => {
+  // OpenAI GPT-4o vision token calculation
+  if (imageSize === 'low') {
+    return 85; // Fixed cost for low detail
+  }
+  // For high detail: base 85 + tiles * 170
+  // Assuming ~768x768 scaled image = 4 tiles for typical ranch camera images
+  return 85 + (4 * 170); // = 765 tokens for high detail
 };
 
 // Component to display individual model results
@@ -36,7 +48,7 @@ const ModelResultCard = ({ result, image }) => {
           <p className="text-sm text-gray-600">Tokens: {result.tokens_used || 0}</p>
           {result.tokens_used && (
             <p className="text-xs text-green-600">
-              Cost: ${calculateActualCost(result.model_name, result.tokens_used)}
+              Cost: ${calculateActualCost(result.model_name, result.input_tokens || Math.floor(result.tokens_used * 0.4), result.output_tokens || Math.floor(result.tokens_used * 0.6))}
             </p>
           )}
         </div>
@@ -173,8 +185,8 @@ const TestAnalysis = ({ configs, onAnalysisComplete }) => {
       provider: 'gemini',
       name: 'Gemini 1.5 Flash',
       model: 'gemini-1.5-flash',
-      inputCost: 0.35, // per 1M tokens
-      outputCost: 1.05  // per 1M tokens
+      inputCost: 0.10, // per 1M tokens (CORRECTED)
+      outputCost: 0.40  // per 1M tokens (CORRECTED)
     },
     { 
       id: 'gemini-2.0-flash', 
@@ -189,8 +201,8 @@ const TestAnalysis = ({ configs, onAnalysisComplete }) => {
       provider: 'gemini',
       name: 'Gemini 2.5 Pro',
       model: 'gemini-2.5-pro',
-      inputCost: 3.50, // per 1M tokens (estimated)
-      outputCost: 10.50  // per 1M tokens (estimated)
+      inputCost: 1.25, // per 1M tokens (CORRECTED)
+      outputCost: 10.00  // per 1M tokens (CORRECTED)
     }
   ];
 
@@ -296,16 +308,20 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
   };
 
   const getEstimatedCost = () => {
-    // Estimate tokens: ~200 for prompt + ~100 for image description + ~300 for response
-    const estimatedInputTokens = 300;
-    const estimatedOutputTokens = 300;
+    // Realistic token estimation for image analysis
+    const promptTokens = 200; // Typical analysis prompt length
+    const imageTokens = 85;   // Low detail image tokens (OpenAI) / negligible for Gemini
+    const outputTokens = 300; // Expected JSON response length
     
     let totalCost = 0;
     selectedModels.forEach(modelId => {
       const model = modelOptions.find(m => m.id === modelId);
       if (model) {
-        const inputCost = (estimatedInputTokens / 1000000) * model.inputCost;
-        const outputCost = (estimatedOutputTokens / 1000000) * model.outputCost;
+        // Input tokens = prompt + image processing
+        const inputTokens = promptTokens + (model.provider === 'openai' ? imageTokens : 0);
+        
+        const inputCost = (inputTokens / 1000000) * model.inputCost;
+        const outputCost = (outputTokens / 1000000) * model.outputCost;
         totalCost += inputCost + outputCost;
       }
     });
@@ -498,10 +514,14 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
           {/* Cost Estimation */}
           <div className="bg-gray-50 p-3 rounded-lg text-sm">
             <div className="flex justify-between items-center">
-              <span className="text-gray-600">Estimated tokens:</span>
-              <span className="font-medium">~600 tokens</span>
+              <span className="text-gray-600">Input tokens:</span>
+              <span className="font-medium">~285 (prompt + image)</span>
             </div>
-            <div className="flex justify-between items-center mt-1">
+            <div className="flex justify-between items-center">
+              <span className="text-gray-600">Output tokens:</span>
+              <span className="font-medium">~300 (JSON response)</span>
+            </div>
+            <div className="flex justify-between items-center mt-1 border-t pt-1">
               <span className="text-gray-600">Estimated cost:</span>
               <span className="font-medium text-green-600">
                 ${getEstimatedCost().toFixed(4)}
@@ -512,6 +532,9 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
                 * Cost for {selectedModels.length} models combined
               </div>
             )}
+            <div className="text-xs text-gray-500 mt-1">
+              * OpenAI charges for image processing (85 tokens), Gemini includes images in text pricing
+            </div>
           </div>
         </div>
         

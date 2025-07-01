@@ -137,11 +137,12 @@ class OpenAIProvider(BaseProvider):
         ]
     
     def estimate_cost(self, tokens_used: int, model: str) -> float:
+        # OpenAI pricing (official 2024 rates - average of input/output per 1M tokens)
         cost_per_1k_tokens = {
-            "gpt-4o": 0.015,
-            "gpt-4o-mini": 0.0006,
-            "gpt-4-turbo": 0.03,
-            "gpt-4-vision-preview": 0.03
+            "gpt-4o": 0.010,           # $5.00 input + $15.00 output average = $10.00 per 1M
+            "gpt-4o-mini": 0.000375,   # $0.15 input + $0.60 output average = $0.375 per 1M
+            "gpt-4-turbo": 0.03,       # Legacy pricing
+            "gpt-4-vision-preview": 0.03  # Legacy pricing
         }
         
         rate = cost_per_1k_tokens.get(model, 0.03)

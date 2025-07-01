@@ -96,13 +96,13 @@ Remember to respond with valid JSON only."""
         ]
     
     def estimate_cost(self, tokens_used: int, model: str) -> float:
-        # Gemini pricing (approximate)
+        # Gemini pricing (official 2024 rates per 1M tokens)
         cost_per_1k_tokens = {
-            "gemini-1.5-flash": 0.00035,     # $0.35 per 1M tokens
-            "gemini-1.5-pro": 0.00125,       # $1.25 per 1M tokens
+            "gemini-1.5-flash": 0.00025,     # $0.10 input + $0.40 output average = $0.25 per 1M
+            "gemini-1.5-pro": 0.00125,       # Legacy model pricing
             "gemini-2.0-flash-exp": 0.0,     # Free during preview
-            "gemini-2.5-pro": 0.007,         # $7.00 per 1M tokens (estimated)
-            "gemini-pro-vision": 0.00125     # Same as 1.5 pro
+            "gemini-2.5-pro": 0.005625,      # $1.25 input + $10.00 output average = $5.625 per 1M
+            "gemini-pro-vision": 0.00125     # Legacy model pricing
         }
         
         rate = cost_per_1k_tokens.get(model, 0.00125)

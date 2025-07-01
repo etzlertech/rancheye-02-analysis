@@ -125,30 +125,31 @@ WHERE user_initiated = TRUE
 ORDER BY created_at DESC
 LIMIT 100;
 
--- Function to calculate cost based on model and tokens
+-- Function to calculate cost based on model and tokens (updated with 2024 official pricing)
 CREATE OR REPLACE FUNCTION calculate_ai_cost(
     provider TEXT,
     model TEXT,
     tokens INTEGER
 ) RETURNS DECIMAL(10, 6) AS $$
 BEGIN
-    -- OpenAI pricing (per 1K tokens)
+    -- OpenAI pricing (average of input/output per 1K tokens, 2024 official rates)
     IF provider = 'openai' THEN
         CASE model
-            WHEN 'gpt-4o' THEN RETURN (tokens / 1000.0) * 0.015; -- $15/1M input tokens
-            WHEN 'gpt-4o-mini' THEN RETURN (tokens / 1000.0) * 0.0006; -- $0.60/1M input tokens
-            WHEN 'gpt-4-turbo' THEN RETURN (tokens / 1000.0) * 0.03; -- $30/1M input tokens
-            WHEN 'gpt-4-vision-preview' THEN RETURN (tokens / 1000.0) * 0.03;
+            WHEN 'gpt-4o' THEN RETURN (tokens / 1000.0) * 0.010; -- $5.00 input + $15.00 output avg = $10.00/1M
+            WHEN 'gpt-4o-mini' THEN RETURN (tokens / 1000.0) * 0.000375; -- $0.15 input + $0.60 output avg = $0.375/1M
+            WHEN 'gpt-4-turbo' THEN RETURN (tokens / 1000.0) * 0.03; -- Legacy pricing
+            WHEN 'gpt-4-vision-preview' THEN RETURN (tokens / 1000.0) * 0.03; -- Legacy pricing
             ELSE RETURN (tokens / 1000.0) * 0.02; -- Default OpenAI rate
         END CASE;
     END IF;
     
-    -- Google Gemini pricing
+    -- Google Gemini pricing (2024 official rates)
     IF provider = 'gemini' THEN
         CASE model
-            WHEN 'gemini-1.5-flash' THEN RETURN (tokens / 1000.0) * 0.0007; -- $0.70/1M tokens
+            WHEN 'gemini-1.5-flash' THEN RETURN (tokens / 1000.0) * 0.00025; -- $0.10 input + $0.40 output avg = $0.25/1M
             WHEN 'gemini-2.0-flash-exp' THEN RETURN 0; -- Free during preview
-            WHEN 'gemini-2.5-pro' THEN RETURN (tokens / 1000.0) * 0.007; -- $7.00/1M tokens (estimated avg)
+            WHEN 'gemini-2.5-pro' THEN RETURN (tokens / 1000.0) * 0.005625; -- $1.25 input + $10.00 output avg = $5.625/1M
+            WHEN 'gemini-1.5-pro' THEN RETURN (tokens / 1000.0) * 0.00125; -- Legacy pricing
             ELSE RETURN (tokens / 1000.0) * 0.001; -- Default Gemini rate
         END CASE;
     END IF;
