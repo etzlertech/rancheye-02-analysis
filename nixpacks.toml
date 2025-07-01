@@ -6,9 +6,8 @@ cmds = ["npm --version", "node --version"]
 
 [phases.build]
 cmds = [
-    "cd frontend && npm install",
-    "cd frontend && npm run build",
-    "ls -la static/dist/ || echo 'No dist folder'"
+    "chmod +x build.sh",
+    "./build.sh"
 ]
 
 [start]
