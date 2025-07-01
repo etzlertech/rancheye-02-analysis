@@ -68,12 +68,36 @@ class OpenAIProvider(BaseProvider):
             # Log the response for debugging
             print(f"OpenAI raw response: {raw_response[:500]}...")
             
+            # Clean the response - remove markdown code blocks if present
+            cleaned_response = raw_response.strip()
+            if cleaned_response.startswith('```json'):
+                cleaned_response = cleaned_response[7:]  # Remove ```json
+            elif cleaned_response.startswith('```'):
+                cleaned_response = cleaned_response[3:]  # Remove ```
+            
+            if cleaned_response.endswith('```'):
+                cleaned_response = cleaned_response[:-3]  # Remove trailing ```
+            
+            cleaned_response = cleaned_response.strip()
+            
             try:
-                parsed_data = json.loads(raw_response)
+                parsed_data = json.loads(cleaned_response)
                 confidence = parsed_data.get('confidence', 0.5)
             except json.JSONDecodeError:
-                parsed_data = {"error": "Failed to parse JSON response", "raw": raw_response}
-                confidence = 0.0
+                # Try one more time with just extracting JSON from the response
+                import re
+                # Look for JSON object - match from first { to last }
+                json_match = re.search(r'\{.*\}', raw_response, re.DOTALL)
+                if json_match:
+                    try:
+                        parsed_data = json.loads(json_match.group())
+                        confidence = parsed_data.get('confidence', 0.5)
+                    except:
+                        parsed_data = {"error": "Failed to parse JSON response", "raw": raw_response}
+                        confidence = 0.0
+                else:
+                    parsed_data = {"error": "Failed to parse JSON response", "raw": raw_response}
+                    confidence = 0.0
                 print(f"JSON decode error. Raw response: {raw_response}")
                 
             processing_time_ms = int((time.time() - start_time) * 1000)
