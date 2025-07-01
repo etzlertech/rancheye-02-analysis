@@ -242,3 +242,155 @@ class SupabaseClient:
                 
         except Exception as e:
             logger.error(f"Error updating cost tracking: {e}")
+    
+    async def save_ai_analysis_log(
+        self,
+        image_id: str,
+        image_url: Optional[str],
+        camera_name: Optional[str],
+        captured_at: Optional[str],
+        analysis_type: str,
+        prompt_text: str,
+        custom_prompt: bool,
+        model_provider: str,
+        model_name: str,
+        raw_response: str,
+        parsed_response: Optional[Dict[str, Any]],
+        confidence: Optional[float],
+        analysis_successful: bool,
+        error_message: Optional[str],
+        processing_time_ms: Optional[int],
+        tokens_used: Optional[int],
+        config_id: Optional[str] = None,
+        task_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        user_initiated: bool = False,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        notes: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+        model_temperature: float = 0.3,
+        max_tokens: int = 500
+    ) -> Optional[str]:
+        """Save comprehensive AI analysis log entry"""
+        try:
+            log_data = {
+                'image_id': image_id,
+                'image_url': image_url,
+                'camera_name': camera_name,
+                'captured_at': captured_at,
+                'analysis_type': analysis_type,
+                'prompt_text': prompt_text,
+                'custom_prompt': custom_prompt,
+                'model_provider': model_provider,
+                'model_name': model_name,
+                'model_temperature': model_temperature,
+                'max_tokens': max_tokens,
+                'raw_response': raw_response,
+                'parsed_response': parsed_response,
+                'confidence': confidence,
+                'analysis_successful': analysis_successful,
+                'error_message': error_message,
+                'processing_time_ms': processing_time_ms,
+                'tokens_used': tokens_used,
+                'config_id': config_id,
+                'task_id': task_id,
+                'session_id': session_id,
+                'user_initiated': user_initiated,
+                'ip_address': ip_address,
+                'user_agent': user_agent,
+                'notes': notes,
+                'tags': tags
+            }
+            
+            # Remove None values to avoid inserting nulls unnecessarily
+            log_data = {k: v for k, v in log_data.items() if v is not None}
+            
+            response = self.client.table('ai_analysis_logs').insert(log_data).execute()
+            return response.data[0]['id']
+            
+        except Exception as e:
+            logger.error(f"Error saving AI analysis log: {e}")
+            return None
+    
+    async def get_recent_ai_analysis_logs(
+        self,
+        limit: int = 50,
+        user_initiated_only: bool = False,
+        analysis_type: Optional[str] = None,
+        model_provider: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Get recent AI analysis logs with optional filtering"""
+        try:
+            query = self.client.table('ai_analysis_logs').select('*')
+            
+            if user_initiated_only:
+                query = query.eq('user_initiated', True)
+            
+            if analysis_type:
+                query = query.eq('analysis_type', analysis_type)
+                
+            if model_provider:
+                query = query.eq('model_provider', model_provider)
+            
+            response = query.order('created_at', desc=True).limit(limit).execute()
+            return response.data
+            
+        except Exception as e:
+            logger.error(f"Error getting AI analysis logs: {e}")
+            return []
+    
+    async def get_analysis_cost_summary(
+        self,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Get cost summary from AI analysis logs"""
+        try:
+            query = self.client.table('ai_analysis_logs').select(
+                'model_provider,model_name,estimated_cost,tokens_used,created_at'
+            )
+            
+            if start_date:
+                query = query.gte('created_at', start_date)
+            if end_date:
+                query = query.lte('created_at', end_date)
+            
+            response = query.execute()
+            
+            # Calculate summary statistics
+            total_cost = sum(log.get('estimated_cost', 0) or 0 for log in response.data)
+            total_tokens = sum(log.get('tokens_used', 0) or 0 for log in response.data)
+            total_analyses = len(response.data)
+            
+            # Group by provider
+            by_provider = {}
+            for log in response.data:
+                provider = log.get('model_provider', 'unknown')
+                if provider not in by_provider:
+                    by_provider[provider] = {
+                        'count': 0,
+                        'total_cost': 0,
+                        'total_tokens': 0
+                    }
+                by_provider[provider]['count'] += 1
+                by_provider[provider]['total_cost'] += log.get('estimated_cost', 0) or 0
+                by_provider[provider]['total_tokens'] += log.get('tokens_used', 0) or 0
+            
+            return {
+                'total_analyses': total_analyses,
+                'total_cost': total_cost,
+                'total_tokens': total_tokens,
+                'avg_cost_per_analysis': total_cost / max(total_analyses, 1),
+                'by_provider': by_provider
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting cost summary: {e}")
+            return {
+                'total_analyses': 0,
+                'total_cost': 0,
+                'total_tokens': 0,
+                'avg_cost_per_analysis': 0,
+                'by_provider': {}
+            }

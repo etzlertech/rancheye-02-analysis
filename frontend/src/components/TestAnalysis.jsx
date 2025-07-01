@@ -8,7 +8,8 @@ const calculateActualCost = (modelName, tokens) => {
     'gpt-4o-mini': { input: 0.15, output: 0.60 },
     'gpt-4o': { input: 5.00, output: 15.00 },
     'gemini-1.5-flash': { input: 0.35, output: 1.05 },
-    'gemini-2.0-flash-exp': { input: 0.00, output: 0.00 }
+    'gemini-2.0-flash-exp': { input: 0.00, output: 0.00 },
+    'gemini-2.5-pro': { input: 3.50, output: 10.50 }
   };
   
   const modelCost = costs[modelName] || { input: 0, output: 0 };
@@ -182,6 +183,14 @@ const TestAnalysis = ({ configs, onAnalysisComplete }) => {
       model: 'gemini-2.0-flash-exp',
       inputCost: 0.00, // Free during preview
       outputCost: 0.00  // Free during preview
+    },
+    { 
+      id: 'gemini-2.5-pro', 
+      provider: 'gemini',
+      name: 'Gemini 2.5 Pro',
+      model: 'gemini-2.5-pro',
+      inputCost: 3.50, // per 1M tokens (estimated)
+      outputCost: 10.50  // per 1M tokens (estimated)
     }
   ];
 

@@ -89,16 +89,20 @@ Remember to respond with valid JSON only."""
     def get_supported_models(self) -> List[str]:
         return [
             "gemini-1.5-flash",
-            "gemini-1.5-pro",
+            "gemini-1.5-pro", 
+            "gemini-2.0-flash-exp",
+            "gemini-2.5-pro",
             "gemini-pro-vision"
         ]
     
     def estimate_cost(self, tokens_used: int, model: str) -> float:
         # Gemini pricing (approximate)
         cost_per_1k_tokens = {
-            "gemini-1.5-flash": 0.00035,  # $0.35 per 1M tokens
-            "gemini-1.5-pro": 0.00125,    # $1.25 per 1M tokens
-            "gemini-pro-vision": 0.00125  # Same as pro
+            "gemini-1.5-flash": 0.00035,     # $0.35 per 1M tokens
+            "gemini-1.5-pro": 0.00125,       # $1.25 per 1M tokens
+            "gemini-2.0-flash-exp": 0.0,     # Free during preview
+            "gemini-2.5-pro": 0.007,         # $7.00 per 1M tokens (estimated)
+            "gemini-pro-vision": 0.00125     # Same as 1.5 pro
         }
         
         rate = cost_per_1k_tokens.get(model, 0.00125)

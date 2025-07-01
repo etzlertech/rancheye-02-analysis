@@ -10,6 +10,7 @@ import asyncio
 import json
 import os
 import sys
+import uuid
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
@@ -381,6 +382,9 @@ async def test_analysis(request: dict):
             'primary_model': 'gpt-4o-mini'
         }
         
+        # Generate session ID for grouping related analyses
+        session_id = str(uuid.uuid4())
+        
         # Check if we should compare models
         if compare_models or len(selected_models) > 1:
             results = []
@@ -406,6 +410,11 @@ async def test_analysis(request: dict):
                     'provider': 'gemini',
                     'model': 'gemini-2.0-flash-exp',
                     'api_key': os.getenv('GEMINI_API_KEY')
+                },
+                'gemini-2.5-pro': {
+                    'provider': 'gemini',
+                    'model': 'gemini-2.5-pro',
+                    'api_key': os.getenv('GEMINI_API_KEY')
                 }
             }
             
@@ -426,16 +435,40 @@ async def test_analysis(request: dict):
                             result = await analysis_service.analyze_with_dual_models(
                                 image_data,
                                 model_config,
-                                model_info['api_key']
+                                model_info['api_key'],
+                                session_id=session_id,
+                                user_initiated=True
                             )
-                            results.append(format_model_result(result, model_config, analysis_type))
+                            
+                            # Save additional analysis log for this model
+                            formatted_result = format_model_result(result, model_config, analysis_type)
+                            primary_result = result.get('primary_result')
+                            if primary_result:
+                                await save_test_analysis_log(
+                                    image_metadata, analysis_type, custom_prompt,
+                                    model_info['provider'], model_info['model'],
+                                    primary_result.raw_response, result['final_result'],
+                                    formatted_result.get('confidence', 0),
+                                    primary_result.processing_time_ms,
+                                    primary_result.tokens_used, session_id
+                                )
+                            
+                            results.append(formatted_result)
                         except Exception as e:
+                            error_msg = str(e)
                             results.append({
                                 'model_provider': model_info['provider'],
                                 'model_name': model_info['model'],
-                                'error': str(e),
+                                'error': error_msg,
                                 'analysis_type': analysis_type
                             })
+                            
+                            # Save error log
+                            await save_test_analysis_log(
+                                image_metadata, analysis_type, custom_prompt,
+                                model_info['provider'], model_info['model'],
+                                error_msg, {}, 0, 0, 0, session_id, error_msg
+                            )
                     else:
                         results.append({
                             'model_provider': model_info['provider'],
@@ -448,7 +481,8 @@ async def test_analysis(request: dict):
                 'compare_mode': True,
                 'results': results,
                 'analysis_type': analysis_type,
-                'image': image_metadata
+                'image': image_metadata,
+                'session_id': session_id
             }
         
         # Single model analysis
@@ -473,6 +507,11 @@ async def test_analysis(request: dict):
                 'provider': 'gemini',
                 'model': 'gemini-2.0-flash-exp',
                 'api_key': os.getenv('GEMINI_API_KEY')
+            },
+            'gemini-2.5-pro': {
+                'provider': 'gemini',
+                'model': 'gemini-2.5-pro',
+                'api_key': os.getenv('GEMINI_API_KEY')
             }
         }
         
@@ -495,7 +534,9 @@ async def test_analysis(request: dict):
         result = await analysis_service.analyze_with_dual_models(
             image_data,
             test_config,
-            model_info['api_key']
+            model_info['api_key'],
+            session_id=session_id,
+            user_initiated=True
         )
         
         # Format response for frontend
@@ -518,6 +559,16 @@ async def test_analysis(request: dict):
                         'raw_response': primary_result.raw_response[:500]
                     }
             
+            # Save comprehensive analysis log
+            await save_test_analysis_log(
+                image_metadata, analysis_type, custom_prompt,
+                test_config['model_provider'], test_config['model_name'],
+                primary_result.raw_response, final_result,
+                final_result.get('confidence', 0.95) if isinstance(final_result, dict) else 0.95,
+                primary_result.processing_time_ms,
+                primary_result.tokens_used, session_id
+            )
+            
             return {
                 'analysis_type': analysis_type,
                 'confidence': final_result.get('confidence', 0.95) if isinstance(final_result, dict) else 0.95,
@@ -526,9 +577,18 @@ async def test_analysis(request: dict):
                 'result': final_result,
                 'tokens_used': primary_result.tokens_used,
                 'processing_time_ms': primary_result.processing_time_ms,
-                'raw_response': primary_result.raw_response  # Include for debugging
+                'raw_response': primary_result.raw_response,  # Include for debugging
+                'session_id': session_id
             }
         else:
+            # Save error log for failed analysis
+            await save_test_analysis_log(
+                image_metadata, analysis_type, custom_prompt,
+                test_config['model_provider'], test_config['model_name'],
+                'Analysis failed - no result returned', {}, 0, 0, 0, session_id,
+                'Analysis failed - no result returned'
+            )
+            
             return {
                 'analysis_type': analysis_type,
                 'confidence': 0,
@@ -536,7 +596,8 @@ async def test_analysis(request: dict):
                 'model_name': test_config['model_name'],
                 'result': {'error': 'Analysis failed - no result returned'},
                 'tokens_used': 0,
-                'processing_time_ms': 0
+                'processing_time_ms': 0,
+                'session_id': session_id
             }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -577,6 +638,48 @@ def format_model_result(result: dict, config: dict, analysis_type: str) -> dict:
             'tokens_used': 0,
             'processing_time_ms': 0
         }
+
+
+async def save_test_analysis_log(
+    image_data,
+    analysis_type: str,
+    prompt: str,
+    model_provider: str,
+    model_name: str,
+    raw_response: str,
+    parsed_response: Dict[str, Any],
+    confidence: float,
+    processing_time_ms: int,
+    tokens_used: int,
+    session_id: str,
+    error_message: Optional[str] = None
+) -> Optional[str]:
+    """Save comprehensive log for test analysis"""
+    try:
+        return await supabase.save_ai_analysis_log(
+            image_id=image_data['image_id'],
+            image_url=image_data.get('image_url'),
+            camera_name=image_data.get('camera_name'),
+            captured_at=image_data.get('downloaded_at') or image_data.get('captured_at'),
+            analysis_type=analysis_type,
+            prompt_text=prompt,
+            custom_prompt=True,  # Test analyses always use custom/modified prompts
+            model_provider=model_provider,
+            model_name=model_name,
+            raw_response=raw_response,
+            parsed_response=parsed_response,
+            confidence=confidence,
+            analysis_successful=error_message is None,
+            error_message=error_message,
+            processing_time_ms=processing_time_ms,
+            tokens_used=tokens_used,
+            session_id=session_id,
+            user_initiated=True,  # Test analyses are always user-initiated
+            notes=f"Test analysis via web interface"
+        )
+    except Exception as e:
+        logger.error(f"Failed to save test analysis log: {e}")
+        return None
 
 
 def get_test_prompt(analysis_type: str) -> str:

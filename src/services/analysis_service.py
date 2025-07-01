@@ -3,6 +3,7 @@ from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
 import json
 import logging
+import uuid
 from ..providers.base import BaseProvider, ImageData, AnalysisResult
 from ..providers.provider_factory import ProviderFactory
 from ..db.supabase_client import SupabaseClient
@@ -24,13 +25,60 @@ class AnalysisService:
             )
         return self.providers[provider_name]
     
+    async def _save_analysis_log(
+        self,
+        image_data: ImageData,
+        config: Dict[str, Any],
+        prompt: str,
+        result: AnalysisResult,
+        session_id: Optional[str] = None,
+        user_initiated: bool = False,
+        task_id: Optional[str] = None,
+        custom_prompt: bool = False
+    ) -> Optional[str]:
+        """Save comprehensive analysis log for audit trail"""
+        try:
+            # Determine if this was a custom prompt
+            is_custom = custom_prompt or (prompt != config.get('prompt_template', ''))
+            
+            return await self.supabase.save_ai_analysis_log(
+                image_id=image_data.image_id,
+                image_url=getattr(image_data, 'image_url', None),
+                camera_name=image_data.camera_name,
+                captured_at=image_data.captured_at,
+                analysis_type=config.get('analysis_type', 'unknown'),
+                prompt_text=prompt,
+                custom_prompt=is_custom,
+                model_provider=result.provider,
+                model_name=result.model,
+                raw_response=result.raw_response,
+                parsed_response=result.parsed_data,
+                confidence=result.confidence,
+                analysis_successful=result.error is None,
+                error_message=result.error,
+                processing_time_ms=result.processing_time_ms,
+                tokens_used=result.tokens_used,
+                config_id=config.get('id'),
+                task_id=task_id,
+                session_id=session_id,
+                user_initiated=user_initiated,
+                model_temperature=getattr(result, 'temperature', 0.3),
+                max_tokens=getattr(result, 'max_tokens', 500)
+            )
+        except Exception as e:
+            logger.error(f"Failed to save analysis log: {e}")
+            return None
+    
     async def analyze_with_dual_models(
         self,
         image_data: ImageData,
         config: Dict[str, Any],
         primary_provider_key: str,
         secondary_provider_key: Optional[str] = None,
-        tiebreaker_provider_key: Optional[str] = None
+        tiebreaker_provider_key: Optional[str] = None,
+        session_id: Optional[str] = None,
+        user_initiated: bool = False,
+        task_id: Optional[str] = None
     ) -> Dict[str, Any]:
         
         primary_provider = self._get_provider(
@@ -38,11 +86,21 @@ class AnalysisService:
             primary_provider_key
         )
         
+        # Generate session ID if not provided (for grouping related analyses)
+        if not session_id:
+            session_id = str(uuid.uuid4())
+        
         # Run primary analysis
         primary_result = await primary_provider.analyze_image(
             image_data,
             config['prompt_template'],
             config['primary_model']
+        )
+        
+        # Save primary analysis log
+        await self._save_analysis_log(
+            image_data, config, config['prompt_template'], primary_result,
+            session_id, user_initiated, task_id
         )
         
         # If no secondary model configured, return primary result
@@ -65,6 +123,12 @@ class AnalysisService:
             image_data,
             config['prompt_template'],
             config['secondary_model']
+        )
+        
+        # Save secondary analysis log
+        await self._save_analysis_log(
+            image_data, config, config['prompt_template'], secondary_result,
+            session_id, user_initiated, task_id
         )
         
         # Check for agreement
@@ -100,6 +164,12 @@ class AnalysisService:
                 image_data,
                 tiebreaker_prompt,
                 config['tiebreaker_model']
+            )
+            
+            # Save tiebreaker analysis log
+            await self._save_analysis_log(
+                image_data, config, tiebreaker_prompt, tiebreaker_result,
+                session_id, user_initiated, task_id, custom_prompt=True
             )
             
             return {
