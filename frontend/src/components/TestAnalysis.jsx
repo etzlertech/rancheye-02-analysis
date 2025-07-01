@@ -495,8 +495,8 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
   const loadImages = async (silent = false) => {
     if (!silent) setLoadingImages(true);
     try {
-      // Request thumbnails for faster loading
-      const response = await api.get('/api/images/recent?limit=100&thumbnail=true');
+      // Load recent images
+      const response = await api.get('/api/images/recent?limit=100');
       console.log('Loaded images:', response.data.images);
       
       // Check if images have URLs
@@ -1194,7 +1194,7 @@ const ImageThumbnail = ({ image, onSelect, isVisible, imageObserver, onLoad, onE
               loading="lazy"
               onLoad={onLoad}
               onError={(e) => {
-                console.error('Failed to load image:', image.image_id);
+                console.error('Failed to load image:', image.image_id, image.image_url);
                 onError();
               }}
               style={{

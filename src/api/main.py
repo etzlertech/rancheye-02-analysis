@@ -244,10 +244,8 @@ async def get_recent_images(limit: int = 20, thumbnail: bool = False):
                     )
                     if signed_url and 'signedURL' in signed_url:
                         url = signed_url['signedURL']
-                        # Add transformation parameters for thumbnails if supported
-                        if thumbnail and 'supabase.co' in url:
-                            # Supabase supports image transformations
-                            url += '?width=300&height=300&resize=contain'
+                        # For now, don't modify the URL - Supabase signed URLs may not support transforms
+                        # TODO: Implement proper thumbnail generation if needed
                         image['image_url'] = url
                         print(f"Generated URL for {image['image_id']}: {image['image_url'][:100]}...")
                 except Exception as e:
