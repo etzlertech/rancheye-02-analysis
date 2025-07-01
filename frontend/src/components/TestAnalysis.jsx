@@ -2,6 +2,113 @@ import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import api from '../utils/api';
 
+// Component to display individual model results
+const ModelResultCard = ({ result, image }) => {
+  const isOpenAI = result.model_provider === 'openai';
+  
+  return (
+    <div className={`p-4 bg-gray-50 rounded-lg border-2 ${isOpenAI ? 'border-blue-200' : 'border-purple-200'}`}>
+      <div className="flex justify-between items-start mb-3">
+        <div>
+          <h4 className={`font-semibold text-lg ${isOpenAI ? 'text-blue-700' : 'text-purple-700'}`}>
+            {isOpenAI ? 'OpenAI' : 'Google Gemini'}
+          </h4>
+          <p className="text-sm text-gray-600">{result.model_name}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-sm text-gray-600">Processing: {result.processing_time_ms}ms</p>
+          <p className="text-sm text-gray-600">Tokens: {result.tokens_used}</p>
+        </div>
+      </div>
+      
+      {result.error ? (
+        <div className="bg-red-50 p-3 rounded border border-red-200">
+          <p className="text-sm text-red-700">{result.error}</p>
+        </div>
+      ) : (
+        <>
+          {/* Decision Summary */}
+          {result.result && (
+            <div className="bg-white p-3 rounded border border-gray-200 mb-3">
+              <div className="flex justify-between items-center mb-2">
+                <h5 className="font-medium text-sm">Decision</h5>
+                <span className={`text-sm font-semibold ${
+                  result.confidence >= 0.8 ? 'text-green-600' : 
+                  result.confidence >= 0.5 ? 'text-yellow-600' : 'text-red-600'
+                }`}>
+                  Confidence: {((result.result?.confidence || result.confidence) * 100).toFixed(0)}%
+                </span>
+              </div>
+              
+              {result.result.gate_visible !== undefined && (
+                <p className="text-sm">
+                  Gate: <strong>{result.result.gate_visible ? `${result.result.gate_open ? 'OPEN' : 'CLOSED'}` : 'Not Visible'}</strong>
+                </p>
+              )}
+              {result.result.door_visible !== undefined && (
+                <div className="text-sm">
+                  <p>Door: <strong>{result.result.door_visible ? 'Detected' : 'Not Visible'}</strong></p>
+                  {result.result.door_visible && (
+                    <>
+                      <p>Status: <strong>{result.result.door_open ? `OPEN (${result.result.opening_percentage}%)` : 'CLOSED'}</strong></p>
+                      {result.result.door_type && <p>Type: <strong>{result.result.door_type}</strong></p>}
+                    </>
+                  )}
+                </div>
+              )}
+              {result.result.water_level && (
+                <p className="text-sm">
+                  Water Level: <strong>{result.result.water_level}</strong> ({result.result.percentage_estimate}%)
+                </p>
+              )}
+              {result.result.animals_detected !== undefined && (
+                <p className="text-sm">
+                  Animals: <strong>{result.result.animals_detected ? `${result.result.animals.length} detected` : 'None detected'}</strong>
+                </p>
+              )}
+              {result.result.feed_level && (
+                <p className="text-sm">
+                  Feed Level: <strong>{result.result.feed_level}</strong> ({result.result.percentage_estimate}%)
+                </p>
+              )}
+            </div>
+          )}
+          
+          {/* Reasoning */}
+          {result.result?.reasoning && (
+            <div className="mb-3">
+              <h5 className="font-medium text-sm mb-1">AI Reasoning</h5>
+              <p className="text-sm text-gray-700 bg-white p-2 rounded border border-gray-200">
+                {result.result.reasoning}
+              </p>
+            </div>
+          )}
+          
+          {/* Visual Evidence */}
+          {result.result?.visual_evidence && (
+            <div className="mb-3">
+              <h5 className="font-medium text-sm mb-1">Visual Evidence</h5>
+              <p className="text-sm text-gray-700 bg-white p-2 rounded border border-gray-200">
+                {result.result.visual_evidence}
+              </p>
+            </div>
+          )}
+          
+          {/* Raw Response */}
+          <details className="mt-3">
+            <summary className="cursor-pointer text-sm text-gray-600 hover:text-gray-800">
+              View Raw Response
+            </summary>
+            <pre className="mt-2 p-2 bg-gray-800 text-gray-100 rounded text-xs overflow-x-auto">
+              {result.raw_response || JSON.stringify(result.result, null, 2)}
+            </pre>
+          </details>
+        </>
+      )}
+    </div>
+  );
+};
+
 const TestAnalysis = ({ configs, onAnalysisComplete }) => {
   const [images, setImages] = useState([]);
   const [selectedImage, setSelectedImage] = useState(null);
@@ -12,6 +119,7 @@ const TestAnalysis = ({ configs, onAnalysisComplete }) => {
   const [showImagePicker, setShowImagePicker] = useState(false);
   const [customPrompt, setCustomPrompt] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [compareModels, setCompareModels] = useState(false);
 
   const analysisTypes = [
     { value: 'gate_detection', label: 'Gate Detection' },
@@ -135,7 +243,8 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
       const response = await api.post('/api/analysis/test', {
         image_id: selectedImage.image_id,
         analysis_type: selectedType,
-        custom_prompt: customPrompt
+        custom_prompt: customPrompt,
+        compare_models: compareModels
       });
       
       setResult({
@@ -291,6 +400,19 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
           )}
         </div>
         
+        <div className="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            id="compareModels"
+            checked={compareModels}
+            onChange={(e) => setCompareModels(e.target.checked)}
+            className="rounded border-gray-300"
+          />
+          <label htmlFor="compareModels" className="text-sm text-gray-700">
+            Compare OpenAI and Gemini responses
+          </label>
+        </div>
+        
         <button
           onClick={handleAnalyze}
           disabled={!selectedImage || analyzing}
@@ -303,7 +425,16 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
           {analyzing ? 'Analyzing...' : 'Analyze Image'}
         </button>
         
-        {result && (
+        {result && result.compare_mode ? (
+          // Compare mode results
+          <div className="mt-4 space-y-4">
+            <h3 className="font-semibold text-lg">Model Comparison Results</h3>
+            {result.results.map((modelResult, idx) => (
+              <ModelResultCard key={idx} result={modelResult} image={result.image} />
+            ))}
+          </div>
+        ) : result ? (
+          // Single model result
           <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
             <h3 className="font-semibold mb-3 text-lg">Analysis Result</h3>
             
@@ -473,7 +604,7 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
               </pre>
             </details>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

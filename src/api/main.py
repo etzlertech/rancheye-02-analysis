@@ -338,6 +338,7 @@ async def test_analysis(request: dict):
         image_id = request.get('image_id')
         analysis_type = request.get('analysis_type', 'general')
         custom_prompt = request.get('custom_prompt', '')
+        compare_models = request.get('compare_models', False)
         
         if not image_id:
             raise HTTPException(status_code=400, detail="image_id required")
@@ -379,7 +380,68 @@ async def test_analysis(request: dict):
             'primary_model': 'gpt-4o-mini'
         }
         
-        # Get API key
+        # Check if we should compare models
+        if compare_models:
+            results = []
+            
+            # Run OpenAI analysis
+            openai_key = os.getenv('OPENAI_API_KEY')
+            if openai_key:
+                openai_config = test_config.copy()
+                openai_config.update({
+                    'model_provider': 'openai',
+                    'model_name': 'gpt-4o-mini',
+                    'primary_provider': 'openai',
+                    'primary_model': 'gpt-4o-mini'
+                })
+                
+                try:
+                    openai_result = await analysis_service.analyze_with_dual_models(
+                        image_data,
+                        openai_config,
+                        openai_key
+                    )
+                    results.append(format_model_result(openai_result, openai_config, analysis_type))
+                except Exception as e:
+                    results.append({
+                        'model_provider': 'openai',
+                        'model_name': 'gpt-4o-mini',
+                        'error': str(e)
+                    })
+            
+            # Run Gemini analysis
+            gemini_key = os.getenv('GEMINI_API_KEY')
+            if gemini_key:
+                gemini_config = test_config.copy()
+                gemini_config.update({
+                    'model_provider': 'gemini',
+                    'model_name': 'gemini-1.5-flash',
+                    'primary_provider': 'gemini',
+                    'primary_model': 'gemini-1.5-flash'
+                })
+                
+                try:
+                    gemini_result = await analysis_service.analyze_with_dual_models(
+                        image_data,
+                        gemini_config,
+                        gemini_key
+                    )
+                    results.append(format_model_result(gemini_result, gemini_config, analysis_type))
+                except Exception as e:
+                    results.append({
+                        'model_provider': 'gemini',
+                        'model_name': 'gemini-1.5-flash',
+                        'error': str(e)
+                    })
+            
+            return {
+                'compare_mode': True,
+                'results': results,
+                'analysis_type': analysis_type,
+                'image': image_metadata
+            }
+        
+        # Single model analysis (existing code)
         api_key = os.getenv('OPENAI_API_KEY')
         if not api_key:
             raise HTTPException(status_code=500, detail="OpenAI API key not configured")
@@ -433,6 +495,43 @@ async def test_analysis(request: dict):
             }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+def format_model_result(result: dict, config: dict, analysis_type: str) -> dict:
+    """Format analysis result for a specific model"""
+    primary_result = result.get('primary_result')
+    if primary_result:
+        final_result = result['final_result']
+        if not final_result or (isinstance(final_result, dict) and len(final_result) == 0):
+            try:
+                import json
+                final_result = json.loads(primary_result.raw_response)
+            except:
+                final_result = {
+                    'error': 'Failed to parse AI response',
+                    'raw_response': primary_result.raw_response[:500]
+                }
+        
+        return {
+            'analysis_type': analysis_type,
+            'confidence': final_result.get('confidence', 0.95) if isinstance(final_result, dict) else 0.95,
+            'model_provider': config['model_provider'],
+            'model_name': config['model_name'],
+            'result': final_result,
+            'tokens_used': primary_result.tokens_used,
+            'processing_time_ms': primary_result.processing_time_ms,
+            'raw_response': primary_result.raw_response
+        }
+    else:
+        return {
+            'analysis_type': analysis_type,
+            'confidence': 0,
+            'model_provider': config['model_provider'],
+            'model_name': config['model_name'],
+            'result': {'error': 'Analysis failed - no result returned'},
+            'tokens_used': 0,
+            'processing_time_ms': 0
+        }
 
 
 def get_test_prompt(analysis_type: str) -> str:
