@@ -390,7 +390,28 @@ async def test_analysis(request: dict):
             api_key
         )
         
-        return result
+        # Format response for frontend
+        primary_result = result.get('primary_result')
+        if primary_result:
+            return {
+                'analysis_type': analysis_type,
+                'confidence': result['final_result'].get('confidence', 0.95),
+                'model_provider': test_config['model_provider'],
+                'model_name': test_config['model_name'],
+                'result': result['final_result'],
+                'tokens_used': primary_result.tokens_used,
+                'processing_time_ms': primary_result.processing_time_ms
+            }
+        else:
+            return {
+                'analysis_type': analysis_type,
+                'confidence': 0,
+                'model_provider': test_config['model_provider'],
+                'model_name': test_config['model_name'],
+                'result': {'error': 'Analysis failed'},
+                'tokens_used': 0,
+                'processing_time_ms': 0
+            }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
