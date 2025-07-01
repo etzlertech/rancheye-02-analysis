@@ -4,13 +4,16 @@ FROM python:3.11-slim AS builder
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies including Node.js
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     build-essential \
     libpq-dev \
+    curl \
+    && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 # Create virtual environment
@@ -20,6 +23,14 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Build React frontend
+COPY frontend/package*.json ./frontend/
+WORKDIR /app/frontend
+RUN npm install
+COPY frontend/ .
+RUN npm run build
+WORKDIR /app
 
 # Production stage
 FROM python:3.11-slim AS production
