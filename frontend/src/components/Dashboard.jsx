@@ -89,9 +89,8 @@ const Dashboard = () => {
   return (
     <div className="container mx-auto px-4 py-8">
       <Header />
-      <StatsCards />
       
-      {/* Test Analysis Section - Moved to Top */}
+      {/* Test Analysis Section - At Top */}
       <div className="mb-6">
         <TestAnalysis 
           configs={configs}
@@ -99,8 +98,8 @@ const Dashboard = () => {
         />
       </div>
       
-      {/* Stats and Recent Data */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Recent Data */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
         <div className="lg:col-span-2">
           <RecentImages 
             images={images} 
@@ -121,6 +120,9 @@ const Dashboard = () => {
           />
         </div>
       </div>
+      
+      {/* Stats Cards - Moved to Bottom */}
+      <StatsCards />
     </div>
   );
 };
