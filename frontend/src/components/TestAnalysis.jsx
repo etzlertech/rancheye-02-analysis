@@ -153,15 +153,39 @@ const TestAnalysis = ({ configs, onAnalysisComplete }) => {
   const [customPrompt, setCustomPrompt] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [selectedModels, setSelectedModels] = useState(['openai-gpt-4o-mini']);
+  const [showSavePrompt, setShowSavePrompt] = useState(false);
+  const [savePromptName, setSavePromptName] = useState('');
+  const [savePromptDescription, setSavePromptDescription] = useState('');
+  const [saveAsDefault, setSaveAsDefault] = useState(false);
+  const [customPrompts, setCustomPrompts] = useState([]);
+  const [selectedCustomPrompt, setSelectedCustomPrompt] = useState(null);
 
-  const analysisTypes = [
-    { value: 'gate_detection', label: 'Gate Detection' },
-    { value: 'door_detection', label: 'Door Detection' },
-    { value: 'water_level', label: 'Water Level' },
-    { value: 'feed_bin_status', label: 'Feed Bin Status' },
-    { value: 'animal_detection', label: 'Animal Detection' },
-    { value: 'custom', label: 'Custom Analysis' },
-  ];
+  const getAnalysisTypes = () => {
+    const baseTypes = [
+      { value: 'gate_detection', label: 'Gate Detection' },
+      { value: 'door_detection', label: 'Door Detection' },
+      { value: 'water_level', label: 'Water Level' },
+      { value: 'feed_bin_status', label: 'Feed Bin Status' },
+      { value: 'animal_detection', label: 'Animal Detection' },
+    ];
+
+    // Add custom saved prompts
+    const customTypes = customPrompts
+      .filter(p => !p.is_system && !p.is_default)
+      .map(p => ({
+        value: `custom_${p.id}`,
+        label: `📝 ${p.name}`,
+        customPrompt: p
+      }));
+
+    return [
+      ...baseTypes,
+      ...customTypes,
+      { value: 'custom', label: 'Custom Analysis' },
+    ];
+  };
+
+  const analysisTypes = getAnalysisTypes();
 
   const modelOptions = [
     { 
@@ -281,11 +305,49 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
   }, [showImagePicker]);
 
   useEffect(() => {
-    // Update custom prompt when analysis type changes
-    if (selectedType !== 'custom') {
-      setCustomPrompt(defaultPrompts[selectedType] || '');
+    loadCustomPrompts();
+  }, []);
+
+  const loadCustomPrompts = async () => {
+    try {
+      const response = await api.get('/api/prompt-templates');
+      setCustomPrompts(response.data.templates || []);
+    } catch (error) {
+      console.error('Error loading custom prompts:', error);
     }
-  }, [selectedType]);
+  };
+
+  useEffect(() => {
+    // Update custom prompt when analysis type changes
+    if (selectedType.startsWith('custom_')) {
+      // This is a saved custom prompt
+      const promptId = selectedType.replace('custom_', '');
+      const customPrompt = customPrompts.find(p => p.id === promptId);
+      if (customPrompt) {
+        setCustomPrompt(customPrompt.prompt_text);
+        setSelectedCustomPrompt(customPrompt);
+        setShowAdvanced(true); // Auto-expand to show the prompt
+      }
+    } else if (selectedType !== 'custom') {
+      // This is a standard analysis type
+      // Check if there's a custom default for this analysis type
+      const customDefault = customPrompts.find(p => 
+        p.analysis_type === selectedType && p.is_default && !p.is_system
+      );
+      
+      if (customDefault) {
+        setCustomPrompt(customDefault.prompt_text);
+        setSelectedCustomPrompt(customDefault);
+      } else {
+        setCustomPrompt(defaultPrompts[selectedType] || '');
+        setSelectedCustomPrompt(null);
+      }
+    } else {
+      // This is 'custom' - clear the prompt
+      setCustomPrompt('');
+      setSelectedCustomPrompt(null);
+    }
+  }, [selectedType, customPrompts]);
 
   const handleModelToggle = (modelId) => {
     if (modelId === 'both') {
@@ -329,6 +391,55 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
     return totalCost;
   };
 
+  const handleSavePrompt = async () => {
+    if (!savePromptName.trim() && !saveAsDefault) {
+      toast.error('Please enter a name for the prompt template');
+      return;
+    }
+
+    try {
+      // Determine the actual analysis type for saving
+      let actualAnalysisType = selectedType;
+      if (selectedType.startsWith('custom_')) {
+        const promptId = selectedType.replace('custom_', '');
+        const customPromptObj = customPrompts.find(p => p.id === promptId);
+        actualAnalysisType = customPromptObj?.analysis_type || 'custom';
+      }
+
+      const saveData = {
+        name: saveAsDefault ? `Default ${actualAnalysisType.replace('_', ' ')}` : savePromptName,
+        description: savePromptDescription,
+        prompt_text: customPrompt,
+        analysis_type: actualAnalysisType,
+        save_as_default: saveAsDefault
+      };
+
+      const response = await api.post('/api/prompt-templates', saveData);
+      
+      if (saveAsDefault) {
+        toast.success('Default prompt template updated!');
+      } else {
+        toast.success('Custom prompt template saved!');
+      }
+      
+      // Reload custom prompts and close modal
+      await loadCustomPrompts();
+      setShowSavePrompt(false);
+      setSavePromptName('');
+      setSavePromptDescription('');
+      setSaveAsDefault(false);
+      
+    } catch (error) {
+      console.error('Error saving prompt:', error);
+      toast.error('Failed to save prompt template');
+    }
+  };
+
+  const handlePromptChange = (newPrompt) => {
+    setCustomPrompt(newPrompt);
+    setSelectedCustomPrompt(null); // Clear selection when manually editing
+  };
+
   const loadImages = async () => {
     setLoadingImages(true);
     try {
@@ -357,10 +468,25 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
     setAnalyzing(true);
 
     try {
+      // Determine the actual analysis type
+      let actualAnalysisType = selectedType;
+      if (selectedType.startsWith('custom_')) {
+        const promptId = selectedType.replace('custom_', '');
+        const customPromptObj = customPrompts.find(p => p.id === promptId);
+        actualAnalysisType = customPromptObj?.analysis_type || 'custom';
+        
+        // Increment usage count for the template
+        try {
+          await api.post(`/api/prompt-templates/${promptId}/increment-usage`);
+        } catch (error) {
+          console.warn('Failed to increment usage count:', error);
+        }
+      }
+
       // Create a test analysis task
       const response = await api.post('/api/analysis/test', {
         image_id: selectedImage.image_id,
-        analysis_type: selectedType,
+        analysis_type: actualAnalysisType,
         custom_prompt: customPrompt,
         selected_models: selectedModels,
         compare_models: selectedModels.length > 1
@@ -566,19 +692,36 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
           
           {showAdvanced && (
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">
-                Custom Prompt
-              </label>
+              <div className="flex justify-between items-center">
+                <label className="block text-sm font-medium text-gray-700">
+                  Custom Prompt
+                </label>
+                {customPrompt && (
+                  <button
+                    onClick={() => setShowSavePrompt(true)}
+                    className="text-xs bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 transition-colors"
+                  >
+                    💾 Save Prompt
+                  </button>
+                )}
+              </div>
               <textarea
                 value={customPrompt}
-                onChange={(e) => setCustomPrompt(e.target.value)}
+                onChange={(e) => handlePromptChange(e.target.value)}
                 rows={6}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono"
                 placeholder="Enter your custom analysis prompt..."
               />
-              <p className="text-xs text-gray-500">
-                The prompt will be sent to the AI model. Make sure to request JSON output for structured results.
-              </p>
+              <div className="flex justify-between items-start">
+                <p className="text-xs text-gray-500">
+                  The prompt will be sent to the AI model. Make sure to request JSON output for structured results.
+                </p>
+                {selectedCustomPrompt && (
+                  <div className="text-xs text-blue-600">
+                    📝 Using: {selectedCustomPrompt.name}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -775,6 +918,95 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
             </details>
           </div>
         ) : null}
+        
+        {/* Save Prompt Modal */}
+        {showSavePrompt && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold">Save Prompt Template</h3>
+                <button
+                  onClick={() => setShowSavePrompt(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <i className="fa fa-times text-xl"></i>
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                {/* Save as Default Toggle */}
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="saveAsDefault"
+                    checked={saveAsDefault}
+                    onChange={(e) => setSaveAsDefault(e.target.checked)}
+                    className="mr-2"
+                  />
+                  <label htmlFor="saveAsDefault" className="text-sm">
+                    Save as default for {analysisTypes.find(t => t.value === selectedType)?.label}
+                  </label>
+                </div>
+                
+                {!saveAsDefault && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Template Name *
+                      </label>
+                      <input
+                        type="text"
+                        value={savePromptName}
+                        onChange={(e) => setSavePromptName(e.target.value)}
+                        className="w-full border border-gray-300 rounded px-3 py-2"
+                        placeholder="Enter template name..."
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Description (optional)
+                      </label>
+                      <textarea
+                        value={savePromptDescription}
+                        onChange={(e) => setSavePromptDescription(e.target.value)}
+                        rows={2}
+                        className="w-full border border-gray-300 rounded px-3 py-2"
+                        placeholder="Describe what this template is used for..."
+                      />
+                    </div>
+                  </>
+                )}
+                
+                <div className="bg-gray-50 p-3 rounded text-sm">
+                  <strong>Analysis Type:</strong> {analysisTypes.find(t => t.value === selectedType)?.label}
+                  <br />
+                  <strong>Prompt Length:</strong> {customPrompt.length} characters
+                </div>
+                
+                <div className="flex space-x-3">
+                  <button
+                    onClick={() => setShowSavePrompt(false)}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSavePrompt}
+                    disabled={!saveAsDefault && !savePromptName.trim()}
+                    className={`flex-1 px-4 py-2 rounded text-white ${
+                      (!saveAsDefault && !savePromptName.trim())
+                        ? 'bg-gray-300 cursor-not-allowed'
+                        : 'bg-green-500 hover:bg-green-600'
+                    }`}
+                  >
+                    {saveAsDefault ? 'Save as Default' : 'Save Copy'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

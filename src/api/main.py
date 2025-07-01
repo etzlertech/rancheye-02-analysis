@@ -97,6 +97,24 @@ class AnalysisRequest(BaseModel):
     config_id: Optional[str] = None
 
 
+class PromptTemplate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    prompt_text: str
+    analysis_type: str
+    tags: Optional[List[str]] = None
+    model_optimized_for: Optional[List[str]] = None
+
+
+class SavePromptRequest(BaseModel):
+    name: str
+    description: Optional[str] = None
+    prompt_text: str
+    analysis_type: str
+    save_as_default: bool = False
+    tags: Optional[List[str]] = None
+
+
 # API Endpoints
 @app.get("/")
 async def root():
@@ -599,6 +617,132 @@ async def test_analysis(request: dict):
                 'processing_time_ms': 0,
                 'session_id': session_id
             }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/prompt-templates")
+async def get_prompt_templates(analysis_type: Optional[str] = None):
+    """Get all prompt templates, optionally filtered by analysis type"""
+    try:
+        query = supabase.client.table('custom_prompt_templates').select('*')
+        
+        if analysis_type:
+            query = query.eq('analysis_type', analysis_type)
+        
+        response = query.order('is_default', desc=True).order('usage_count', desc=True).execute()
+        return {"templates": response.data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/prompt-templates/{template_id}")
+async def get_prompt_template(template_id: str):
+    """Get a specific prompt template by ID"""
+    try:
+        response = supabase.client.table('custom_prompt_templates').select('*').eq('id', template_id).single().execute()
+        return {"template": response.data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/prompt-templates")
+async def save_prompt_template(request: SavePromptRequest):
+    """Save a new prompt template or update default"""
+    try:
+        if request.save_as_default:
+            # Update existing default template
+            response = supabase.client.table('custom_prompt_templates').update({
+                'prompt_text': request.prompt_text,
+                'description': request.description,
+                'tags': request.tags
+            }).eq('analysis_type', request.analysis_type).eq('is_default', True).execute()
+            
+            if response.data:
+                return {"message": "Default template updated", "template": response.data[0]}
+            else:
+                # No existing default, create new one
+                template_data = {
+                    'name': f"Default {request.analysis_type.replace('_', ' ').title()}",
+                    'description': request.description,
+                    'prompt_text': request.prompt_text,
+                    'analysis_type': request.analysis_type,
+                    'is_default': True,
+                    'is_system': False,
+                    'tags': request.tags
+                }
+                response = supabase.client.table('custom_prompt_templates').insert(template_data).execute()
+                return {"message": "Default template created", "template": response.data[0]}
+        else:
+            # Create new custom template
+            template_data = {
+                'name': request.name,
+                'description': request.description,
+                'prompt_text': request.prompt_text,
+                'analysis_type': request.analysis_type,
+                'is_default': False,
+                'is_system': False,
+                'tags': request.tags
+            }
+            response = supabase.client.table('custom_prompt_templates').insert(template_data).execute()
+            return {"message": "Custom template created", "template": response.data[0]}
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/prompt-templates/{template_id}")
+async def update_prompt_template(template_id: str, template: PromptTemplate):
+    """Update an existing prompt template"""
+    try:
+        update_data = {
+            'name': template.name,
+            'description': template.description,
+            'prompt_text': template.prompt_text,
+            'analysis_type': template.analysis_type,
+            'tags': template.tags,
+            'model_optimized_for': template.model_optimized_for
+        }
+        
+        response = supabase.client.table('custom_prompt_templates').update(update_data).eq('id', template_id).execute()
+        return {"message": "Template updated", "template": response.data[0]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/prompt-templates/{template_id}")
+async def delete_prompt_template(template_id: str):
+    """Delete a prompt template (cannot delete system defaults)"""
+    try:
+        # Check if it's a system default template
+        response = supabase.client.table('custom_prompt_templates').select('is_system, is_default').eq('id', template_id).single().execute()
+        
+        if response.data['is_system'] and response.data['is_default']:
+            raise HTTPException(status_code=400, detail="Cannot delete system default templates")
+        
+        supabase.client.table('custom_prompt_templates').delete().eq('id', template_id).execute()
+        return {"message": "Template deleted"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/prompt-templates/{template_id}/set-default")
+async def set_default_template(template_id: str):
+    """Set a template as the default for its analysis type"""
+    try:
+        # Use the database function to ensure only one default per analysis type
+        supabase.client.rpc('set_default_template', {'template_id': template_id}).execute()
+        return {"message": "Template set as default"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/prompt-templates/{template_id}/increment-usage")
+async def increment_template_usage(template_id: str):
+    """Increment usage count for a template"""
+    try:
+        supabase.client.rpc('increment_prompt_usage', {'template_id': template_id}).execute()
+        return {"message": "Usage incremented"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
