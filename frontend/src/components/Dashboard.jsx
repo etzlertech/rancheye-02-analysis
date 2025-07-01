@@ -67,7 +67,9 @@ const Dashboard = () => {
 
   const handleAnalyze = async (imageId) => {
     try {
-      await api.post(`/api/analysis/analyze/${imageId}`);
+      await api.post('/api/analysis/analyze', {
+        image_id: imageId
+      });
       // Reload data after triggering analysis
       setTimeout(loadData, 2000);
     } catch (error) {
