@@ -22,20 +22,45 @@ const Dashboard = () => {
 
   const loadData = async () => {
     try {
-      const [imagesRes, resultsRes, alertsRes, configsRes] = await Promise.all([
+      const [imagesRes, resultsRes, alertsRes, configsRes] = await Promise.allSettled([
         api.get('/api/images/recent'),
         api.get('/api/analysis/results'),
         api.get('/api/alerts'),
         api.get('/api/configs'),
       ]);
 
-      setImages(imagesRes.data);
-      setResults(resultsRes.data);
-      setAlerts(alertsRes.data);
-      setConfigs(configsRes.data);
+      // Handle each response separately to avoid errors
+      if (imagesRes.status === 'fulfilled') {
+        setImages(imagesRes.value.data.images || []);
+      } else {
+        setImages([]);
+      }
+      
+      if (resultsRes.status === 'fulfilled') {
+        setResults(resultsRes.value.data.results || []);
+      } else {
+        setResults([]);
+      }
+      
+      if (alertsRes.status === 'fulfilled') {
+        setAlerts(alertsRes.value.data.alerts || []);
+      } else {
+        setAlerts([]);
+      }
+      
+      if (configsRes.status === 'fulfilled') {
+        setConfigs(configsRes.value.data.configs || []);
+      } else {
+        setConfigs([]);
+      }
+      
       setLoading(false);
     } catch (error) {
       console.error('Error loading data:', error);
+      setImages([]);
+      setResults([]);
+      setAlerts([]);
+      setConfigs([]);
       setLoading(false);
     }
   };
