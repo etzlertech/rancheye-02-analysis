@@ -314,6 +314,9 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
       setCustomPrompts(response.data.templates || []);
     } catch (error) {
       console.error('Error loading custom prompts:', error);
+      // Don't show error toast for loading - just log it
+      // Table might not exist yet, which is fine
+      setCustomPrompts([]);
     }
   };
 
@@ -431,7 +434,13 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
       
     } catch (error) {
       console.error('Error saving prompt:', error);
-      toast.error('Failed to save prompt template');
+      const errorMessage = error.response?.data?.detail || error.message || 'Failed to save prompt template';
+      
+      if (errorMessage.includes('custom_prompt_templates') || errorMessage.includes('does not exist')) {
+        toast.error('Database setup needed. Please run the SQL from database/custom_prompt_templates.sql in Supabase dashboard.');
+      } else {
+        toast.error(`Failed to save prompt template: ${errorMessage}`);
+      }
     }
   };
 

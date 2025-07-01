@@ -747,6 +747,55 @@ async def increment_template_usage(template_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/admin/setup-custom-prompts")
+async def setup_custom_prompt_templates():
+    """Setup custom prompt templates table (admin only)"""
+    try:
+        # Check if table already exists by trying a simple query
+        try:
+            supabase.client.table('custom_prompt_templates').select('id').limit(1).execute()
+            return {"message": "Custom prompt templates table already exists", "status": "already_exists"}
+        except Exception:
+            # Table doesn't exist, we need to create it
+            pass
+        
+        # Try to create the table with basic schema
+        # Note: This is a simplified version. Full schema should be run manually in Supabase
+        basic_sql = """
+        CREATE TABLE IF NOT EXISTS custom_prompt_templates (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            name TEXT NOT NULL,
+            description TEXT,
+            prompt_text TEXT NOT NULL,
+            analysis_type TEXT NOT NULL,
+            is_default BOOLEAN DEFAULT FALSE,
+            is_system BOOLEAN DEFAULT FALSE,
+            created_by TEXT DEFAULT 'web_user',
+            usage_count INTEGER DEFAULT 0,
+            last_used_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+        """
+        
+        # Since we can't execute raw SQL through Supabase client directly,
+        # we'll return instructions for manual setup
+        return {
+            "message": "Custom prompt templates table needs to be created manually",
+            "status": "manual_setup_required",
+            "instructions": [
+                "1. Go to your Supabase dashboard",
+                "2. Navigate to SQL Editor",
+                "3. Run the SQL from database/custom_prompt_templates.sql",
+                "4. Or contact your administrator to set up the database"
+            ],
+            "sql_file": "database/custom_prompt_templates.sql"
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 def format_model_result(result: dict, config: dict, analysis_type: str) -> dict:
     """Format analysis result for a specific model"""
     primary_result = result.get('primary_result')
