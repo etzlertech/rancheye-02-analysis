@@ -217,6 +217,35 @@ async def get_recent_images(limit: int = 20):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/images/{image_id}/preview")
+async def get_image_preview(image_id: str):
+    """Get image preview/thumbnail"""
+    try:
+        # Get image metadata
+        image_metadata = await supabase.get_image_metadata(image_id)
+        if not image_metadata:
+            raise HTTPException(status_code=404, detail="Image not found")
+        
+        # Try to get image from URL if available
+        if 'image_url' in image_metadata and image_metadata['image_url']:
+            # Redirect to the image URL
+            from fastapi.responses import RedirectResponse
+            return RedirectResponse(url=image_metadata['image_url'])
+        
+        # Otherwise try to download from storage
+        try:
+            image_bytes = await supabase.download_image(image_metadata['storage_path'])
+            from fastapi.responses import Response
+            return Response(content=image_bytes, media_type="image/jpeg")
+        except Exception as e:
+            raise HTTPException(status_code=404, detail=f"Image not accessible: {str(e)}")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/analysis/results")
 async def get_analysis_results(
     image_id: Optional[str] = None,
@@ -313,20 +342,53 @@ async def test_analysis(request: dict):
             raise HTTPException(status_code=400, detail="image_id required")
         
         # Get image metadata
-        image = await supabase.get_image_metadata(image_id)
-        if not image:
+        image_metadata = await supabase.get_image_metadata(image_id)
+        if not image_metadata:
             raise HTTPException(status_code=404, detail="Image not found")
+        
+        # Download image from storage
+        try:
+            image_bytes = await supabase.download_image(image_metadata['storage_path'])
+        except Exception as e:
+            # If storage path fails, try the image URL
+            if 'image_url' in image_metadata:
+                import httpx
+                async with httpx.AsyncClient() as client:
+                    response = await client.get(image_metadata['image_url'])
+                    image_bytes = response.content
+            else:
+                raise HTTPException(status_code=500, detail=f"Cannot download image: {str(e)}")
+        
+        # Create ImageData object
+        from src.providers.base import ImageData
+        image_data = ImageData(
+            image_bytes=image_bytes,
+            image_id=image_metadata['image_id'],
+            camera_name=image_metadata['camera_name'],
+            captured_at=image_metadata.get('downloaded_at', '')
+        )
         
         # Create a temporary config for this test
         test_config = {
             'analysis_type': analysis_type,
             'model_provider': 'openai',
             'model_name': 'gpt-4o-mini',
-            'prompt_template': get_test_prompt(analysis_type)
+            'prompt_template': get_test_prompt(analysis_type),
+            'primary_provider': 'openai',
+            'primary_model': 'gpt-4o-mini'
         }
         
+        # Get API key
+        api_key = os.getenv('OPENAI_API_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="OpenAI API key not configured")
+        
         # Run analysis directly
-        result = await analysis_service.analyze_image(image, test_config)
+        result = await analysis_service.analyze_with_dual_models(
+            image_data,
+            test_config,
+            api_key
+        )
         
         return result
     except Exception as e:

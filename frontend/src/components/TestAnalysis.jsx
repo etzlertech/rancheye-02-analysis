@@ -138,8 +138,19 @@ const TestAnalysis = ({ configs, onAnalysisComplete }) => {
                         onClick={() => handleSelectImage(image)}
                         className="cursor-pointer border rounded-lg p-2 hover:border-blue-500 transition-colors"
                       >
-                        <div className="bg-gray-200 h-32 rounded flex items-center justify-center">
-                          <i className="fa fa-image text-4xl text-gray-400"></i>
+                        <div className="bg-gray-200 h-32 rounded flex items-center justify-center overflow-hidden">
+                          {image.image_url ? (
+                            <img 
+                              src={image.image_url} 
+                              alt={image.camera_name}
+                              className="h-full w-full object-cover"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.nextSibling.style.display = 'block';
+                              }}
+                            />
+                          ) : null}
+                          <i className="fa fa-image text-4xl text-gray-400" style={{display: image.image_url ? 'none' : 'block'}}></i>
                         </div>
                         <p className="text-sm font-medium mt-2 truncate">{image.camera_name}</p>
                         <p className="text-xs text-gray-500 truncate">{image.image_id}</p>
