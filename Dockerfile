@@ -56,7 +56,7 @@ WORKDIR /app
 COPY --chown=appuser:appgroup . .
 
 # Copy React build from builder stage
-COPY --from=builder --chown=appuser:appgroup /app/frontend/dist /app/static/dist
+COPY --from=builder --chown=appuser:appgroup /app/static/dist /app/static/dist
 
 # Create necessary directories
 RUN mkdir -p logs && chown appuser:appgroup logs
