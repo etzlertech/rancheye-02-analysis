@@ -1,25 +1,14 @@
-providers = ["python"]
-
 [phases.setup]
-nixPkgs = ["python311", "nodejs_18", "gcc"]
+nixPkgs = ["nodejs_18"]
 
 [phases.install]
-cmds = [
-    "pip install -r requirements.txt",
-    "node --version",
-    "npm --version"
-]
+cmds = ["npm --version", "node --version"]
 
 [phases.build]
 cmds = [
-    "pwd",
-    "ls -la",
-    "cd frontend && pwd && ls -la",
     "cd frontend && npm install",
     "cd frontend && npm run build",
-    "ls -la static/",
-    "ls -la static/dist/ || echo 'No dist folder'",
-    "echo 'Frontend build complete'"
+    "ls -la static/dist/ || echo 'No dist folder'"
 ]
 
 [start]
