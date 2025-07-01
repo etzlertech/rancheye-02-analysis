@@ -370,20 +370,20 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
   };
 
   const getEstimatedCost = () => {
-    // Realistic token estimation for image analysis
+    // Realistic token estimation for image analysis PER MODEL
     const promptTokens = 200; // Typical analysis prompt length
     const imageTokens = 85;   // Low detail image tokens (OpenAI) / negligible for Gemini
-    const outputTokens = 300; // Expected JSON response length
+    const outputTokensPerModel = 300; // Expected JSON response length PER MODEL
     
     let totalCost = 0;
     selectedModels.forEach(modelId => {
       const model = modelOptions.find(m => m.id === modelId);
       if (model) {
-        // Input tokens = prompt + image processing
+        // Input tokens = prompt + image processing (per model)
         const inputTokens = promptTokens + (model.provider === 'openai' ? imageTokens : 0);
         
         const inputCost = (inputTokens / 1000000) * model.inputCost;
-        const outputCost = (outputTokens / 1000000) * model.outputCost;
+        const outputCost = (outputTokensPerModel / 1000000) * model.outputCost;
         totalCost += inputCost + outputCost;
       }
     });
@@ -640,13 +640,19 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
           {/* Cost Estimation */}
           <div className="bg-gray-50 p-3 rounded-lg text-sm">
             <div className="flex justify-between items-center">
-              <span className="text-gray-600">Input tokens:</span>
+              <span className="text-gray-600">Input tokens per model:</span>
               <span className="font-medium">~285 (prompt + image)</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-gray-600">Output tokens:</span>
+              <span className="text-gray-600">Output tokens per model:</span>
               <span className="font-medium">~300 (JSON response)</span>
             </div>
+            {selectedModels.length > 1 && (
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Total tokens:</span>
+                <span className="font-medium">~{(285 + 300) * selectedModels.length} ({selectedModels.length} models)</span>
+              </div>
+            )}
             <div className="flex justify-between items-center mt-1 border-t pt-1">
               <span className="text-gray-600">Estimated cost:</span>
               <span className="font-medium text-green-600">

@@ -90,11 +90,13 @@ class AnalysisService:
         if not session_id:
             session_id = str(uuid.uuid4())
         
-        # Run primary analysis
+        # Run primary analysis with appropriate max_tokens for the model
+        max_tokens = 1000 if config['primary_provider'] == 'gemini' else 500
         primary_result = await primary_provider.analyze_image(
             image_data,
             config['prompt_template'],
-            config['primary_model']
+            config['primary_model'],
+            max_tokens=max_tokens
         )
         
         # Save primary analysis log
@@ -119,10 +121,12 @@ class AnalysisService:
             secondary_provider_key
         )
         
+        secondary_max_tokens = 1000 if config['secondary_provider'] == 'gemini' else 500
         secondary_result = await secondary_provider.analyze_image(
             image_data,
             config['prompt_template'],
-            config['secondary_model']
+            config['secondary_model'],
+            max_tokens=secondary_max_tokens
         )
         
         # Save secondary analysis log
@@ -160,10 +164,12 @@ class AnalysisService:
                 secondary_result.parsed_data
             )
             
+            tiebreaker_max_tokens = 1000 if config['tiebreaker_provider'] == 'gemini' else 500
             tiebreaker_result = await tiebreaker_provider.analyze_image(
                 image_data,
                 tiebreaker_prompt,
-                config['tiebreaker_model']
+                config['tiebreaker_model'],
+                max_tokens=tiebreaker_max_tokens
             )
             
             # Save tiebreaker analysis log

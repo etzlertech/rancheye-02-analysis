@@ -18,7 +18,7 @@ class GeminiProvider(BaseProvider):
         prompt: str,
         model: str = "gemini-1.5-flash",
         temperature: float = 0.3,
-        max_tokens: int = 500
+        max_tokens: int = 1000  # Increased for better responses
     ) -> AnalysisResult:
         start_time = time.time()
         
@@ -49,17 +49,50 @@ Remember to respond with valid JSON only."""
             # Generate content
             response = model_instance.generate_content([full_prompt, image])
             
+            # Check if response was blocked or incomplete
+            if not response.text:
+                error_msg = "Empty response from Gemini"
+                if hasattr(response, 'prompt_feedback'):
+                    error_msg += f" - Prompt feedback: {response.prompt_feedback}"
+                raise Exception(error_msg)
+            
             raw_response = response.text
+            print(f"Gemini {model} raw response: {raw_response}")
+            
+            # Clean the response - remove markdown code blocks if present
+            cleaned_response = raw_response.strip()
+            if cleaned_response.startswith('```json'):
+                cleaned_response = cleaned_response[7:]  # Remove ```json
+            elif cleaned_response.startswith('```'):
+                cleaned_response = cleaned_response[3:]  # Remove ```
+            
+            if cleaned_response.endswith('```'):
+                cleaned_response = cleaned_response[:-3]  # Remove trailing ```
+            
+            cleaned_response = cleaned_response.strip()
             
             # Estimate tokens (Gemini doesn't provide exact count)
             tokens_used = len(full_prompt.split()) + len(raw_response.split()) * 2
             
             try:
-                parsed_data = json.loads(raw_response)
+                parsed_data = json.loads(cleaned_response)
                 confidence = parsed_data.get('confidence', 0.5)
             except json.JSONDecodeError:
-                parsed_data = {"error": "Failed to parse JSON response", "raw": raw_response}
-                confidence = 0.0
+                # Try one more time with just extracting JSON from the response
+                import re
+                # Look for JSON object - match from first { to last }
+                json_match = re.search(r'\{.*\}', raw_response, re.DOTALL)
+                if json_match:
+                    try:
+                        parsed_data = json.loads(json_match.group())
+                        confidence = parsed_data.get('confidence', 0.5)
+                    except:
+                        parsed_data = {"error": "Failed to parse JSON response", "raw": raw_response}
+                        confidence = 0.0
+                else:
+                    parsed_data = {"error": "Failed to parse JSON response", "raw": raw_response}
+                    confidence = 0.0
+                print(f"Gemini JSON decode error. Raw response: {raw_response}")
                 
             processing_time_ms = int((time.time() - start_time) * 1000)
             
