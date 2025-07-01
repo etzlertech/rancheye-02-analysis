@@ -151,6 +151,8 @@ const TestAnalysis = ({ configs, onAnalysisComplete }) => {
   const [loadingImages, setLoadingImages] = useState(false);
   const [showImagePicker, setShowImagePicker] = useState(false);
   const [customPrompt, setCustomPrompt] = useState('');
+  const [imageLoadStates, setImageLoadStates] = useState({});
+  const [lastImageSync, setLastImageSync] = useState(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [selectedModels, setSelectedModels] = useState(['openai-gpt-4o-mini']);
   const [showSavePrompt, setShowSavePrompt] = useState(false);
@@ -301,6 +303,11 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
   useEffect(() => {
     if (showImagePicker) {
       loadImages();
+      // Auto-refresh images every 30 seconds while picker is open
+      const interval = setInterval(() => {
+        loadImages(true); // Silent refresh
+      }, 30000);
+      return () => clearInterval(interval);
     }
   }, [showImagePicker]);
 
@@ -449,17 +456,31 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
     setSelectedCustomPrompt(null); // Clear selection when manually editing
   };
 
-  const loadImages = async () => {
-    setLoadingImages(true);
+  const loadImages = async (silent = false) => {
+    if (!silent) setLoadingImages(true);
     try {
-      const response = await api.get('/api/images/recent?limit=50');
+      const response = await api.get('/api/images/recent?limit=100'); // Load more images
       setImages(response.data.images || []);
+      setLastImageSync(new Date());
+      if (!silent) {
+        toast.success(`Loaded ${response.data.images?.length || 0} images`);
+      }
     } catch (error) {
       console.error('Error loading images:', error);
-      toast.error('Failed to load images');
+      if (!silent) {
+        toast.error('Failed to load images');
+      }
     } finally {
-      setLoadingImages(false);
+      if (!silent) setLoadingImages(false);
     }
+  };
+  
+  const handleImageLoad = (imageId) => {
+    setImageLoadStates(prev => ({ ...prev, [imageId]: 'loaded' }));
+  };
+  
+  const handleImageError = (imageId) => {
+    setImageLoadStates(prev => ({ ...prev, [imageId]: 'error' }));
   };
 
   const handleSelectImage = (image) => {
@@ -561,13 +582,30 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 max-w-4xl max-h-[80vh] overflow-hidden">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-bold">Select Image from Storage</h3>
-                <button
-                  onClick={() => setShowImagePicker(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <i className="fa fa-times text-xl"></i>
-                </button>
+                <div>
+                  <h3 className="text-lg font-bold">Select Image from Storage</h3>
+                  {lastImageSync && (
+                    <p className="text-xs text-gray-500">
+                      Last synced: {lastImageSync.toLocaleTimeString()}
+                    </p>
+                  )}
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => loadImages()}
+                    disabled={loadingImages}
+                    className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <i className={`fa ${loadingImages ? 'fa-spinner fa-spin' : 'fa-refresh'} mr-1"></i>
+                    Refresh
+                  </button>
+                  <button
+                    onClick={() => setShowImagePicker(false)}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    <i className="fa fa-times text-xl"></i>
+                  </button>
+                </div>
               </div>
               
               <div className="overflow-y-auto max-h-[60vh]">
@@ -575,6 +613,17 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
                   <div className="text-center py-8">
                     <i className="fa fa-spinner fa-spin text-2xl text-gray-400"></i>
                     <p className="text-gray-500 mt-2">Loading images...</p>
+                  </div>
+                ) : images.length === 0 ? (
+                  <div className="text-center py-8">
+                    <i className="fa fa-inbox text-4xl text-gray-400 mb-3"></i>
+                    <p className="text-gray-500">No images found</p>
+                    <button
+                      onClick={() => loadImages()}
+                      className="mt-3 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                    >
+                      Refresh Images
+                    </button>
                   </div>
                 ) : (
                   <div className="grid grid-cols-3 gap-4">
@@ -584,19 +633,32 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
                         onClick={() => handleSelectImage(image)}
                         className="cursor-pointer border rounded-lg p-2 hover:border-blue-500 transition-colors"
                       >
-                        <div className="bg-gray-200 h-32 rounded flex items-center justify-center overflow-hidden">
-                          {image.image_url ? (
+                        <div className="bg-gray-200 h-32 rounded flex items-center justify-center overflow-hidden relative">
+                          {/* Loading state */}
+                          {imageLoadStates[image.image_id] !== 'loaded' && imageLoadStates[image.image_id] !== 'error' && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+                              <i className="fa fa-spinner fa-spin text-2xl text-gray-400"></i>
+                            </div>
+                          )}
+                          
+                          {/* Image */}
+                          {image.image_url && imageLoadStates[image.image_id] !== 'error' ? (
                             <img 
                               src={image.image_url} 
                               alt={image.camera_name}
                               className="h-full w-full object-cover"
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                                e.target.nextSibling.style.display = 'block';
-                              }}
+                              loading="lazy"
+                              onLoad={() => handleImageLoad(image.image_id)}
+                              onError={() => handleImageError(image.image_id)}
                             />
                           ) : null}
-                          <i className="fa fa-image text-4xl text-gray-400" style={{display: image.image_url ? 'none' : 'block'}}></i>
+                          
+                          {/* Error or no URL state */}
+                          {(!image.image_url || imageLoadStates[image.image_id] === 'error') && (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <i className="fa fa-image text-4xl text-gray-400"></i>
+                            </div>
+                          )}
                         </div>
                         <p className="text-sm font-medium mt-2 truncate">{image.camera_name}</p>
                         <p className="text-xs text-gray-500 truncate">{image.image_id}</p>

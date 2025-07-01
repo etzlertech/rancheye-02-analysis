@@ -229,8 +229,26 @@ async def get_recent_images(limit: int = 20):
         response = supabase.client.table('spypoint_images').select('*').order(
             'downloaded_at', desc=True
         ).limit(limit).execute()
-        print(f"Found {len(response.data)} images")
-        return {"images": response.data}
+        
+        images = response.data
+        print(f"Found {len(images)} images")
+        
+        # Generate signed URLs for all images
+        for image in images:
+            if image.get('storage_path') and not image.get('image_url'):
+                try:
+                    # Generate signed URL with 1 hour expiration
+                    signed_url = supabase.client.storage.from_('spypoint-images').create_signed_url(
+                        image['storage_path'],
+                        expires_in=3600  # 1 hour
+                    )
+                    if signed_url and 'signedURL' in signed_url:
+                        image['image_url'] = signed_url['signedURL']
+                except Exception as e:
+                    print(f"Error generating signed URL for {image['image_id']}: {e}")
+                    # Continue with other images even if one fails
+        
+        return {"images": images}
     except Exception as e:
         print(f"Error fetching images: {e}")
         raise HTTPException(status_code=500, detail=str(e))
