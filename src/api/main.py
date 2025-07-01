@@ -99,17 +99,24 @@ class AnalysisRequest(BaseModel):
 # API Endpoints
 @app.get("/")
 async def root():
+    # Debug paths
+    print(f"Looking for React build at: {react_build_dir}")
+    print(f"React index exists: {(react_build_dir / 'index.html').exists()}")
+    print(f"Static dir: {static_dir}")
+    print(f"Static dir contents: {list(static_dir.iterdir()) if static_dir.exists() else 'Not found'}")
+    
     # Serve React build or fallback to original dashboard
     react_index = react_build_dir / "index.html"
     if react_index.exists():
         return FileResponse(str(react_index))
     
     # Fallback to original dashboard
-    html_file = static_dir / "index.html"
+    html_file = static_dir / "index-old.html"
     if html_file.exists():
         return FileResponse(str(html_file))
     
-    return {"message": "RanchEye Analysis API", "status": "running"}
+    # If no UI found, return API status
+    return {"message": "RanchEye Analysis API", "status": "running", "ui": "not found", "checked": str(react_index)}
 
 
 @app.get("/health")
