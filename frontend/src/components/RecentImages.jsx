@@ -29,7 +29,7 @@ const RecentImages = ({ images, loading, onAnalyze }) => {
           onClick={() => setShowThumbnails(!showThumbnails)}
           className="text-sm text-blue-600 hover:text-blue-700"
         >
-          <i className={`fa ${showThumbnails ? 'fa-th' : 'fa-list'} mr-1"></i>
+          <i className={`fa ${showThumbnails ? 'fa-th' : 'fa-list'} mr-1`}></i>
           {showThumbnails ? 'List View' : 'Grid View'}
         </button>
       </div>
