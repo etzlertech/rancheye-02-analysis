@@ -28,7 +28,7 @@ const TestAnalysis = ({ configs, onAnalysisComplete }) => {
     setLoadingImages(true);
     try {
       const response = await api.get('/api/images/recent?limit=50');
-      setImages(response.data);
+      setImages(response.data.images || []);
     } catch (error) {
       console.error('Error loading images:', error);
       toast.error('Failed to load images');
