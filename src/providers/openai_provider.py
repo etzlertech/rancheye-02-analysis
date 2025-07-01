@@ -23,6 +23,7 @@ class OpenAIProvider(BaseProvider):
         
         try:
             base64_image = self.encode_image(image_data.image_bytes)
+            print(f"Image encoded successfully. Base64 length: {len(base64_image)}")
             
             messages = [
                 {
@@ -47,16 +48,25 @@ class OpenAIProvider(BaseProvider):
                 }
             ]
             
-            response = await self.client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                response_format={"type": "json_object"}
-            )
+            # Only use json mode for models that support it
+            create_params = {
+                "model": model,
+                "messages": messages,
+                "temperature": temperature,
+                "max_tokens": max_tokens
+            }
+            
+            # Add JSON mode only for supported models
+            if model in ["gpt-4-turbo-preview", "gpt-4-turbo", "gpt-4o", "gpt-4o-2024-05-13"]:
+                create_params["response_format"] = {"type": "json_object"}
+            
+            response = await self.client.chat.completions.create(**create_params)
             
             raw_response = response.choices[0].message.content
             tokens_used = response.usage.total_tokens
+            
+            # Log the response for debugging
+            print(f"OpenAI raw response: {raw_response[:500]}...")
             
             try:
                 parsed_data = json.loads(raw_response)
@@ -64,6 +74,7 @@ class OpenAIProvider(BaseProvider):
             except json.JSONDecodeError:
                 parsed_data = {"error": "Failed to parse JSON response", "raw": raw_response}
                 confidence = 0.0
+                print(f"JSON decode error. Raw response: {raw_response}")
                 
             processing_time_ms = int((time.time() - start_time) * 1000)
             
@@ -79,15 +90,18 @@ class OpenAIProvider(BaseProvider):
             
         except Exception as e:
             processing_time_ms = int((time.time() - start_time) * 1000)
+            error_msg = f"OpenAI API Error: {str(e)}"
+            print(f"Error in OpenAI provider: {error_msg}")
+            
             return AnalysisResult(
                 provider="openai",
                 model=model,
-                raw_response="",
-                parsed_data={},
+                raw_response=error_msg,
+                parsed_data={"error": error_msg},
                 confidence=0.0,
                 tokens_used=0,
                 processing_time_ms=processing_time_ms,
-                error=str(e)
+                error=error_msg
             )
     
     def get_supported_models(self) -> List[str]:
