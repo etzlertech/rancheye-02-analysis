@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException, File, UploadFile, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
@@ -11,6 +11,8 @@ import json
 import os
 import sys
 import uuid
+import time
+from functools import lru_cache
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
@@ -53,6 +55,10 @@ supabase = SupabaseClient(
 )
 analysis_service = AnalysisService(supabase)
 task_processor = TaskProcessor()
+
+# Simple in-memory cache for signed URLs
+url_cache = {}
+CACHE_DURATION = 3300  # 55 minutes (less than 1 hour expiration)
 
 # WebSocket connections manager
 class ConnectionManager:
@@ -226,43 +232,72 @@ async def delete_config(config_id: str):
 async def get_recent_images(limit: int = 20, thumbnail: bool = False):
     try:
         print(f"Fetching recent images with limit: {limit}, thumbnail: {thumbnail}")
+        import time
+        start_time = time.time()
+        
+        # Fetch images from database
         response = supabase.client.table('spypoint_images').select('*').order(
             'downloaded_at', desc=True
         ).limit(limit).execute()
         
         images = response.data
-        print(f"Found {len(images)} images")
+        print(f"Found {len(images)} images in {time.time() - start_time:.2f}s")
         
-        # Generate signed URLs for all images
-        import time
-        start_time = time.time()
+        # Generate signed URLs in parallel using asyncio
+        url_start_time = time.time()
         
-        # Check if images already have valid URLs to avoid regenerating
-        urls_generated = 0
-        for image in images:
-            # If image already has a URL and it's not expired, skip generation
-            if image.get('image_url') and 'supabase.co' in image.get('image_url', ''):
-                continue
+        async def generate_signed_url(image):
+            """Generate signed URL for a single image"""
+            if not image.get('storage_path'):
+                return image
+            
+            # Check cache first
+            cache_key = f"{image['image_id']}:{image['storage_path']}"
+            cached_url = url_cache.get(cache_key)
+            
+            if cached_url and cached_url['expires'] > time.time():
+                image['image_url'] = cached_url['url']
+                return image
                 
-            if image.get('storage_path'):
-                try:
-                    # Generate fresh signed URL with 1 hour expiration
-                    signed_url = supabase.client.storage.from_('spypoint-images').create_signed_url(
-                        image['storage_path'],
-                        expires_in=3600  # 1 hour
-                    )
-                    if signed_url and 'signedURL' in signed_url:
-                        image['image_url'] = signed_url['signedURL']
-                        urls_generated += 1
-                except Exception as e:
-                    print(f"Error generating signed URL for {image['image_id']}: {e}")
-                    # Use preview endpoint as fallback
-                    image['image_url'] = f"/api/images/{image['image_id']}/preview"
+            try:
+                # Run the sync Supabase client in a thread to avoid blocking
+                import asyncio
+                signed_url = await asyncio.to_thread(
+                    supabase.client.storage.from_('spypoint-images').create_signed_url,
+                    image['storage_path'],
+                    3600  # 1 hour expiration
+                )
+                if signed_url and 'signedURL' in signed_url:
+                    url = signed_url['signedURL']
+                    image['image_url'] = url
+                    # Cache the URL
+                    url_cache[cache_key] = {
+                        'url': url,
+                        'expires': time.time() + CACHE_DURATION
+                    }
+            except Exception as e:
+                print(f"Error generating signed URL for {image['image_id']}: {e}")
+                # Use preview endpoint as fallback
+                image['image_url'] = f"/api/images/{image['image_id']}/preview"
+            
+            return image
         
-        if urls_generated > 0:
-            print(f"Generated {urls_generated} new signed URLs in {time.time() - start_time:.2f}s")
+        # Generate all URLs concurrently
+        import asyncio
+        tasks = [generate_signed_url(image) for image in images]
+        await asyncio.gather(*tasks)
         
-        return {"images": images}
+        # Count how many URLs were cached vs generated
+        cached_count = sum(1 for img in images if img.get('image_url') and cache_key in url_cache 
+                          for cache_key in [f"{img['image_id']}:{img.get('storage_path', '')}"]) 
+        
+        print(f"URLs: {cached_count} cached, {len(images) - cached_count} generated in {time.time() - url_start_time:.2f}s")
+        print(f"Total request time: {time.time() - start_time:.2f}s")
+        
+        # Add cache headers to response
+        response = JSONResponse(content={"images": images})
+        response.headers["Cache-Control"] = "public, max-age=30"
+        return response
     except Exception as e:
         print(f"Error fetching images: {e}")
         raise HTTPException(status_code=500, detail=str(e))
