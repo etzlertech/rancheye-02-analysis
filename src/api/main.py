@@ -48,7 +48,7 @@ app.add_middleware(
 # Initialize services
 supabase = SupabaseClient(
     url=os.getenv('SUPABASE_URL'),
-    key=os.getenv('SUPABASE_KEY')
+    key=os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_KEY')
 )
 analysis_service = AnalysisService(supabase)
 task_processor = TaskProcessor()
