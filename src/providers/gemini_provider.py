@@ -59,6 +59,23 @@ Remember to respond with valid JSON only."""
             raw_response = response.text
             print(f"Gemini {model} raw response: {raw_response}")
             
+            # Check if Gemini provides token usage info
+            input_tokens = None
+            output_tokens = None
+            if hasattr(response, 'usage_metadata'):
+                # Gemini API may provide token counts
+                usage = response.usage_metadata
+                if hasattr(usage, 'prompt_token_count'):
+                    input_tokens = usage.prompt_token_count
+                if hasattr(usage, 'candidates_token_count'):
+                    output_tokens = usage.candidates_token_count
+                tokens_used = (input_tokens or 0) + (output_tokens or 0)
+                print(f"Gemini token usage - Input: {input_tokens}, Output: {output_tokens}")
+            else:
+                # Fallback to estimation if no usage metadata
+                tokens_used = len(full_prompt.split()) + len(raw_response.split()) * 2
+                print(f"Gemini estimated tokens: {tokens_used}")
+            
             # Clean the response - remove markdown code blocks if present
             cleaned_response = raw_response.strip()
             if cleaned_response.startswith('```json'):
@@ -70,9 +87,6 @@ Remember to respond with valid JSON only."""
                 cleaned_response = cleaned_response[:-3]  # Remove trailing ```
             
             cleaned_response = cleaned_response.strip()
-            
-            # Estimate tokens (Gemini doesn't provide exact count)
-            tokens_used = len(full_prompt.split()) + len(raw_response.split()) * 2
             
             try:
                 parsed_data = json.loads(cleaned_response)
@@ -103,7 +117,9 @@ Remember to respond with valid JSON only."""
                 parsed_data=parsed_data,
                 confidence=confidence,
                 tokens_used=tokens_used,
-                processing_time_ms=processing_time_ms
+                processing_time_ms=processing_time_ms,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens
             )
             
         except Exception as e:

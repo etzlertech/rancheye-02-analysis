@@ -45,11 +45,21 @@ const ModelResultCard = ({ result, image }) => {
         </div>
         <div className="text-right">
           <p className="text-sm text-gray-600">Processing: {result.processing_time_ms}ms</p>
-          <p className="text-sm text-gray-600">Tokens: {result.tokens_used || 0}</p>
-          {result.tokens_used && (
-            <p className="text-xs text-green-600">
-              Cost: ${calculateActualCost(result.model_name, result.input_tokens || Math.floor(result.tokens_used * 0.4), result.output_tokens || Math.floor(result.tokens_used * 0.6))}
-            </p>
+          {result.input_tokens && result.output_tokens ? (
+            <>
+              <p className="text-sm text-gray-600">Input: {result.input_tokens} tokens</p>
+              <p className="text-sm text-gray-600">Output: {result.output_tokens} tokens</p>
+              <p className="text-xs text-green-600 font-semibold">
+                Cost: ${calculateActualCost(result.model_name, result.input_tokens, result.output_tokens)}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-gray-600">Tokens: {result.tokens_used || 0}</p>
+              <p className="text-xs text-orange-600">
+                Est. Cost: ${calculateActualCost(result.model_name, Math.floor(result.tokens_used * 0.3), Math.floor(result.tokens_used * 0.7))}
+              </p>
+            </>
           )}
         </div>
       </div>

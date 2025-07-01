@@ -16,6 +16,8 @@ class AnalysisResult:
     tokens_used: int
     processing_time_ms: int
     error: Optional[str] = None
+    input_tokens: Optional[int] = None
+    output_tokens: Optional[int] = None
 
 
 @dataclass

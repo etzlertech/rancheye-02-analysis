@@ -614,6 +614,8 @@ async def test_analysis(request: dict):
                 'model_name': test_config['model_name'],
                 'result': final_result,
                 'tokens_used': primary_result.tokens_used,
+                'input_tokens': primary_result.input_tokens,
+                'output_tokens': primary_result.output_tokens,
                 'processing_time_ms': primary_result.processing_time_ms,
                 'raw_response': primary_result.raw_response,  # Include for debugging
                 'session_id': session_id
@@ -838,6 +840,8 @@ def format_model_result(result: dict, config: dict, analysis_type: str) -> dict:
             'model_name': config['model_name'],
             'result': final_result,
             'tokens_used': primary_result.tokens_used,
+            'input_tokens': primary_result.input_tokens,
+            'output_tokens': primary_result.output_tokens,
             'processing_time_ms': primary_result.processing_time_ms,
             'raw_response': primary_result.raw_response
         }

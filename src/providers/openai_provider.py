@@ -63,7 +63,13 @@ class OpenAIProvider(BaseProvider):
             response = await self.client.chat.completions.create(**create_params)
             
             raw_response = response.choices[0].message.content
+            
+            # Capture detailed token usage
             tokens_used = response.usage.total_tokens
+            input_tokens = response.usage.prompt_tokens
+            output_tokens = response.usage.completion_tokens
+            
+            print(f"OpenAI token usage - Input: {input_tokens}, Output: {output_tokens}, Total: {tokens_used}")
             
             # Log the response for debugging
             print(f"OpenAI raw response: {raw_response[:500]}...")
@@ -109,7 +115,9 @@ class OpenAIProvider(BaseProvider):
                 parsed_data=parsed_data,
                 confidence=confidence,
                 tokens_used=tokens_used,
-                processing_time_ms=processing_time_ms
+                processing_time_ms=processing_time_ms,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens
             )
             
         except Exception as e:
