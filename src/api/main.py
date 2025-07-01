@@ -185,11 +185,14 @@ async def delete_config(config_id: str):
 @app.get("/api/images/recent")
 async def get_recent_images(limit: int = 20):
     try:
+        print(f"Fetching recent images with limit: {limit}")
         response = supabase.client.table('spypoint_images').select('*').order(
-            'captured_at', desc=True
+            'downloaded_at', desc=True
         ).limit(limit).execute()
+        print(f"Found {len(response.data)} images")
         return {"images": response.data}
     except Exception as e:
+        print(f"Error fetching images: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
