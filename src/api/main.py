@@ -448,6 +448,18 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
   "reasoning": "Detailed explanation of what you see in the image and why you made this decision",
   "visual_evidence": "Specific visual details that support your conclusion (e.g., gate posts, hinges, gaps, shadows)"
 }''',
+        'door_detection': '''You are analyzing a trail camera image from a ranch or building. Look for any doors in the image and determine their status.
+
+Analyze the image and respond ONLY with valid JSON in this exact format:
+{
+  "door_visible": true or false,
+  "door_open": true or false (null if no door visible),
+  "opening_percentage": 0 to 100 (estimated percentage the door is open, 0=fully closed, 100=fully open, null if not visible),
+  "door_type": "barn door" or "regular door" or "sliding door" or "garage door" or "other" (null if not visible),
+  "confidence": 0.0 to 1.0,
+  "reasoning": "Detailed explanation of what you see and how you determined the door status",
+  "visual_evidence": "Specific visual details like door frame, hinges, opening gap, shadows, interior visibility"
+}''',
         'water_level': '''You are analyzing a trail camera image from a ranch. Look for water troughs, tanks, or containers and assess the water level.
 
 Analyze the image and respond ONLY with valid JSON in this exact format:
