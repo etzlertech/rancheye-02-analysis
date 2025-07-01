@@ -337,6 +337,7 @@ async def test_analysis(request: dict):
     try:
         image_id = request.get('image_id')
         analysis_type = request.get('analysis_type', 'general')
+        custom_prompt = request.get('custom_prompt', '')
         
         if not image_id:
             raise HTTPException(status_code=400, detail="image_id required")
@@ -373,7 +374,7 @@ async def test_analysis(request: dict):
             'analysis_type': analysis_type,
             'model_provider': 'openai',
             'model_name': 'gpt-4o-mini',
-            'prompt_template': get_test_prompt(analysis_type),
+            'prompt_template': custom_prompt if custom_prompt else get_test_prompt(analysis_type),
             'primary_provider': 'openai',
             'primary_model': 'gpt-4o-mini'
         }
@@ -419,10 +420,10 @@ async def test_analysis(request: dict):
 def get_test_prompt(analysis_type: str) -> str:
     """Get prompt template for test analysis types"""
     prompts = {
-        'gate_detection': 'Analyze this trail camera image and determine if a gate is visible. If a gate is visible, determine if it is OPEN or CLOSED. Respond with JSON: {"gate_visible": boolean, "gate_open": boolean, "confidence": float, "reasoning": "explanation"}',
-        'water_level': 'Analyze this trail camera image for water troughs or containers. Estimate the water level. Respond with JSON: {"water_visible": boolean, "water_level": "FULL|ADEQUATE|LOW|EMPTY", "percentage_estimate": number, "confidence": float, "reasoning": "explanation"}',
-        'animal_detection': 'Analyze this trail camera image for any animals. Respond with JSON: {"animals_detected": boolean, "animals": [{"species": "name", "count": number, "type": "livestock|wildlife", "confidence": float}], "reasoning": "explanation"}',
-        'feed_bin_status': 'Analyze this trail camera image for feed bins or feeders. Respond with JSON: {"feeder_visible": boolean, "feed_level": "FULL|ADEQUATE|LOW|EMPTY", "percentage_estimate": number, "confidence": float, "reasoning": "explanation"}'
+        'gate_detection': 'Analyze this trail camera image and determine if a gate is visible. If a gate is visible, determine if it is OPEN or CLOSED. Provide detailed reasoning for your decision. Respond with JSON: {"gate_visible": boolean, "gate_open": boolean, "confidence": float between 0-1, "reasoning": "detailed explanation of what you see and why you made this decision", "visual_evidence": "specific visual details that support your conclusion"}',
+        'water_level': 'Analyze this trail camera image for water troughs or containers. Estimate the water level and provide detailed reasoning. Respond with JSON: {"water_visible": boolean, "water_level": "FULL|ADEQUATE|LOW|EMPTY", "percentage_estimate": number 0-100, "confidence": float between 0-1, "reasoning": "detailed explanation of your assessment", "visual_evidence": "specific visual details about water color, reflections, container fill level"}',
+        'animal_detection': 'Analyze this trail camera image for any animals. Provide detailed information about each animal detected. Respond with JSON: {"animals_detected": boolean, "animals": [{"species": "name", "count": number, "type": "livestock|wildlife", "confidence": float, "location": "where in image", "behavior": "what they are doing"}], "reasoning": "detailed explanation of identifications", "visual_evidence": "specific features used for identification"}',
+        'feed_bin_status': 'Analyze this trail camera image for feed bins or feeders. Assess the feed level and condition. Respond with JSON: {"feeder_visible": boolean, "feed_level": "FULL|ADEQUATE|LOW|EMPTY", "percentage_estimate": number 0-100, "confidence": float between 0-1, "reasoning": "detailed explanation of assessment", "visual_evidence": "specific visual details about feed visibility and bin condition", "concerns": "any issues noticed"}'
     }
     return prompts.get(analysis_type, prompts['animal_detection'])
 
