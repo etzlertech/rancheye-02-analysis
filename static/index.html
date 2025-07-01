@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RanchEye Analysis Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <style>
+        .alert-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">
+                <i class="fa fa-eye text-green-600"></i> RanchEye Analysis Dashboard
+            </h1>
+            <p class="text-gray-600">AI-powered ranch monitoring system</p>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+            <div class="bg-white rounded-lg shadow p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">Today's Analyses</p>
+                        <p class="text-2xl font-bold" id="analyses-today">0</p>
+                    </div>
+                    <i class="fa fa-chart-line text-blue-500 text-2xl"></i>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">Weekly Total</p>
+                        <p class="text-2xl font-bold" id="analyses-week">0</p>
+                    </div>
+                    <i class="fa fa-calendar text-green-500 text-2xl"></i>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">Active Alerts</p>
+                        <p class="text-2xl font-bold text-red-600" id="active-alerts">0</p>
+                    </div>
+                    <i class="fa fa-exclamation-triangle text-red-500 text-2xl alert-pulse"></i>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">Pending Tasks</p>
+                        <p class="text-2xl font-bold" id="pending-tasks">0</p>
+                    </div>
+                    <i class="fa fa-clock-o text-orange-500 text-2xl"></i>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">Cost Today</p>
+                        <p class="text-2xl font-bold" id="cost-today">$0.00</p>
+                    </div>
+                    <i class="fa fa-dollar text-purple-500 text-2xl"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Recent Images -->
+            <div class="lg:col-span-2">
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h2 class="text-xl font-bold mb-4">Recent Images</h2>
+                    <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead>
+                                <tr class="border-b">
+                                    <th class="text-left py-2">Camera</th>
+                                    <th class="text-left py-2">Time</th>
+                                    <th class="text-left py-2">Status</th>
+                                    <th class="text-left py-2">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="images-table">
+                                <tr>
+                                    <td colspan="4" class="text-center py-4 text-gray-500">
+                                        Loading images...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Analysis Results -->
+                <div class="bg-white rounded-lg shadow-md p-6 mt-6">
+                    <h2 class="text-xl font-bold mb-4">Recent Analysis Results</h2>
+                    <div id="results-container" class="space-y-3">
+                        <p class="text-center text-gray-500">Loading results...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Alerts & Upload -->
+            <div>
+                <!-- Active Alerts -->
+                <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                    <h2 class="text-xl font-bold mb-4 text-red-600">
+                        <i class="fa fa-bell"></i> Active Alerts
+                    </h2>
+                    <div id="alerts-container" class="space-y-3">
+                        <p class="text-center text-gray-500">No active alerts</p>
+                    </div>
+                </div>
+
+                <!-- Upload & Test -->
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h2 class="text-xl font-bold mb-4">Test Analysis</h2>
+                    <form id="upload-form" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Upload Image
+                            </label>
+                            <input type="file" id="file-input" accept="image/*" 
+                                   class="w-full p-2 border rounded" required>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Analysis Type
+                            </label>
+                            <select id="analysis-type" class="w-full p-2 border rounded">
+                                <option value="gate_detection">Gate Detection</option>
+                                <option value="water_level">Water Level</option>
+                                <option value="feed_bin">Feed Bin Status</option>
+                                <option value="animal_detection">Animal Detection</option>
+                            </select>
+                        </div>
+                        
+                        <button type="submit" 
+                                class="w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600">
+                            <i class="fa fa-upload"></i> Upload & Analyze
+                        </button>
+                    </form>
+                    
+                    <div id="upload-result" class="mt-4 hidden">
+                        <h3 class="font-bold mb-2">Analysis Result:</h3>
+                        <pre class="bg-gray-100 p-3 rounded text-sm overflow-x-auto"></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // WebSocket connection
+        let ws = null;
+        const wsUrl = `ws://${window.location.host}/ws`;
+
+        function connectWebSocket() {
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+            };
+            
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'stats_update') {
+                    updateStats(data.data);
+                }
+            };
+            
+            ws.onclose = () => {
+                console.log('WebSocket disconnected, reconnecting...');
+                setTimeout(connectWebSocket, 3000);
+            };
+        }
+
+        // Update stats
+        function updateStats(stats) {
+            document.getElementById('analyses-today').textContent = stats.analyses_today;
+            document.getElementById('analyses-week').textContent = stats.analyses_week;
+            document.getElementById('active-alerts').textContent = stats.active_alerts;
+            document.getElementById('pending-tasks').textContent = stats.pending_tasks;
+            document.getElementById('cost-today').textContent = `$${stats.cost_today.toFixed(2)}`;
+        }
+
+        // Load recent images
+        async function loadImages() {
+            try {
+                const response = await fetch('/api/images/recent');
+                const data = await response.json();
+                
+                const tbody = document.getElementById('images-table');
+                tbody.innerHTML = data.images.map(img => `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="py-2">${img.camera_name}</td>
+                        <td class="py-2">${new Date(img.captured_at).toLocaleString()}</td>
+                        <td class="py-2">
+                            <span class="px-2 py-1 bg-gray-200 rounded text-xs">
+                                ${img.processed ? 'Processed' : 'Pending'}
+                            </span>
+                        </td>
+                        <td class="py-2">
+                            <button onclick="analyzeImage('${img.image_id}')" 
+                                    class="text-blue-500 hover:text-blue-700">
+                                <i class="fa fa-play-circle"></i> Analyze
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading images:', error);
+            }
+        }
+
+        // Load analysis results
+        async function loadResults() {
+            try {
+                const response = await fetch('/api/analysis/results?limit=10');
+                const data = await response.json();
+                
+                const container = document.getElementById('results-container');
+                container.innerHTML = data.results.map(result => {
+                    const alertClass = result.alert_triggered ? 'border-red-500' : 'border-gray-300';
+                    return `
+                        <div class="border ${alertClass} rounded p-3">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <p class="font-semibold">${result.analysis_type}</p>
+                                    <p class="text-sm text-gray-600">
+                                        ${result.model_provider}/${result.model_name}
+                                    </p>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-sm">
+                                        Confidence: ${(result.confidence * 100).toFixed(0)}%
+                                    </p>
+                                    ${result.alert_triggered ? 
+                                        '<span class="text-red-500 text-xs"><i class="fa fa-warning"></i> Alert</span>' : 
+                                        ''}
+                                </div>
+                            </div>
+                            <pre class="text-xs bg-gray-50 p-2 mt-2 rounded overflow-x-auto">
+${JSON.stringify(result.result, null, 2)}</pre>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Error loading results:', error);
+            }
+        }
+
+        // Load alerts
+        async function loadAlerts() {
+            try {
+                const response = await fetch('/api/alerts');
+                const data = await response.json();
+                
+                const container = document.getElementById('alerts-container');
+                if (data.alerts.length === 0) {
+                    container.innerHTML = '<p class="text-center text-gray-500">No active alerts</p>';
+                } else {
+                    container.innerHTML = data.alerts.map(alert => `
+                        <div class="border border-red-300 rounded p-3 bg-red-50">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <p class="font-semibold text-red-700">${alert.title}</p>
+                                    <p class="text-sm">${alert.message}</p>
+                                    <p class="text-xs text-gray-600 mt-1">
+                                        ${alert.camera_name} - ${new Date(alert.created_at).toLocaleString()}
+                                    </p>
+                                </div>
+                                <button onclick="acknowledgeAlert('${alert.id}')" 
+                                        class="text-red-600 hover:text-red-800">
+                                    <i class="fa fa-check"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error loading alerts:', error);
+            }
+        }
+
+        // Analyze image
+        async function analyzeImage(imageId) {
+            try {
+                const response = await fetch('/api/analysis/analyze', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({image_id: imageId})
+                });
+                
+                if (response.ok) {
+                    alert('Analysis started!');
+                    setTimeout(loadResults, 2000);
+                }
+            } catch (error) {
+                console.error('Error starting analysis:', error);
+            }
+        }
+
+        // Acknowledge alert
+        async function acknowledgeAlert(alertId) {
+            try {
+                const response = await fetch(`/api/alerts/${alertId}/acknowledge`, {
+                    method: 'PUT'
+                });
+                
+                if (response.ok) {
+                    loadAlerts();
+                }
+            } catch (error) {
+                console.error('Error acknowledging alert:', error);
+            }
+        }
+
+        // Handle file upload
+        document.getElementById('upload-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const fileInput = document.getElementById('file-input');
+            const analysisType = document.getElementById('analysis-type').value;
+            
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('camera_name', 'Manual Upload');
+            formData.append('analysis_type', analysisType);
+            
+            try {
+                const response = await fetch('/api/upload/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                const resultDiv = document.getElementById('upload-result');
+                resultDiv.classList.remove('hidden');
+                resultDiv.querySelector('pre').textContent = JSON.stringify(result, null, 2);
+            } catch (error) {
+                console.error('Error uploading:', error);
+                alert('Error analyzing image');
+            }
+        });
+
+        // Initialize
+        connectWebSocket();
+        loadImages();
+        loadResults();
+        loadAlerts();
+        
+        // Refresh data periodically
+        setInterval(() => {
+            loadImages();
+            loadResults();
+            loadAlerts();
+        }, 30000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+[providers]
+python = true
+
+[phases.setup]
+nixPkgs = ["python311", "nodejs_18", "gcc"]
+
+[phases.install]
+cmds = ["pip install -r requirements.txt"]
+
+[phases.build]
+cmds = [
+    "cd frontend && npm install && npm run build && cd ..",
+    "echo 'Frontend build complete'"
+]
+
+[start]
+cmd = "python web_server.py"
