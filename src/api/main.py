@@ -223,9 +223,9 @@ async def delete_config(config_id: str):
 
 
 @app.get("/api/images/recent")
-async def get_recent_images(limit: int = 20):
+async def get_recent_images(limit: int = 20, thumbnail: bool = False):
     try:
-        print(f"Fetching recent images with limit: {limit}")
+        print(f"Fetching recent images with limit: {limit}, thumbnail: {thumbnail}")
         response = supabase.client.table('spypoint_images').select('*').order(
             'downloaded_at', desc=True
         ).limit(limit).execute()
@@ -243,12 +243,17 @@ async def get_recent_images(limit: int = 20):
                         expires_in=3600  # 1 hour
                     )
                     if signed_url and 'signedURL' in signed_url:
-                        image['image_url'] = signed_url['signedURL']
+                        url = signed_url['signedURL']
+                        # Add transformation parameters for thumbnails if supported
+                        if thumbnail and 'supabase.co' in url:
+                            # Supabase supports image transformations
+                            url += '?width=300&height=300&resize=contain'
+                        image['image_url'] = url
                         print(f"Generated URL for {image['image_id']}: {image['image_url'][:100]}...")
                 except Exception as e:
                     print(f"Error generating signed URL for {image['image_id']}: {e}")
                     # Try using the preview endpoint as fallback
-                    image['image_url'] = f"/api/images/{image['image_id']}/preview"
+                    image['image_url'] = f"/api/images/{image['image_id']}/preview{'?thumbnail=true' if thumbnail else ''}"
         
         return {"images": images}
     except Exception as e:

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import api from '../utils/api';
 
@@ -163,6 +163,8 @@ const TestAnalysis = ({ configs, onAnalysisComplete }) => {
   const [customPrompt, setCustomPrompt] = useState('');
   const [imageLoadStates, setImageLoadStates] = useState({});
   const [lastImageSync, setLastImageSync] = useState(null);
+  const [visibleImages, setVisibleImages] = useState(new Set());
+  const imageObserver = useRef(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [selectedModels, setSelectedModels] = useState(['openai-gpt-4o-mini']);
   const [showSavePrompt, setShowSavePrompt] = useState(false);
@@ -310,6 +312,27 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
     'custom': ''
   };
 
+  // Set up intersection observer for lazy loading
+  useEffect(() => {
+    imageObserver.current = new IntersectionObserver(
+      (entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            const imageId = entry.target.getAttribute('data-image-id');
+            setVisibleImages(prev => new Set(prev).add(imageId));
+          }
+        });
+      },
+      { rootMargin: '50px' }
+    );
+    
+    return () => {
+      if (imageObserver.current) {
+        imageObserver.current.disconnect();
+      }
+    };
+  }, []);
+  
   useEffect(() => {
     if (showImagePicker) {
       loadImages();
@@ -317,7 +340,10 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
       const interval = setInterval(() => {
         loadImages(true); // Silent refresh
       }, 30000);
-      return () => clearInterval(interval);
+      return () => {
+        clearInterval(interval);
+        setVisibleImages(new Set()); // Clear visible images when closing
+      };
     }
   }, [showImagePicker]);
 
@@ -469,7 +495,8 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
   const loadImages = async (silent = false) => {
     if (!silent) setLoadingImages(true);
     try {
-      const response = await api.get('/api/images/recent?limit=100'); // Load more images
+      // Request thumbnails for faster loading
+      const response = await api.get('/api/images/recent?limit=100&thumbnail=true');
       console.log('Loaded images:', response.data.images);
       
       // Check if images have URLs
@@ -483,7 +510,10 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
       setImages(response.data.images || []);
       setLastImageSync(new Date());
       if (!silent) {
-        toast.success(`Loaded ${response.data.images?.length || 0} images (${imagesWithUrls.length} with URLs)`);
+        // Don't show toast for initial load, only manual refreshes
+        if (images.length > 0) {
+          toast.success(`Loaded ${response.data.images?.length || 0} images`);
+        }
       }
     } catch (error) {
       console.error('Error loading images:', error);
@@ -664,7 +694,7 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
               </div>
               
               <div className="overflow-y-auto max-h-[60vh]">
-                {loadingImages ? (
+                {loadingImages && images.length === 0 ? (
                   <div className="text-center py-8">
                     <i className="fa fa-spinner fa-spin text-2xl text-gray-400"></i>
                     <p className="text-gray-500 mt-2">Loading images...</p>
@@ -683,54 +713,16 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
                 ) : (
                   <div className="grid grid-cols-3 gap-4">
                     {images.map((image) => (
-                      <div
+                      <ImageThumbnail
                         key={image.image_id}
-                        onClick={() => handleSelectImage(image)}
-                        className="cursor-pointer border rounded-lg p-2 hover:border-blue-500 transition-colors"
-                      >
-                        <div className="bg-gray-200 h-32 rounded flex items-center justify-center overflow-hidden relative">
-                          {/* Always try to load the image */}
-                          {image.image_url ? (
-                            <>
-                              {/* Show spinner until loaded */}
-                              {imageLoadStates[image.image_id] !== 'loaded' && (
-                                <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
-                                  <i className="fa fa-spinner fa-spin text-2xl text-gray-400"></i>
-                                </div>
-                              )}
-                              <img 
-                                src={image.image_url} 
-                                alt={image.camera_name}
-                                className="h-full w-full object-cover"
-                                loading="lazy"
-                                onLoad={() => handleImageLoad(image.image_id)}
-                                onError={(e) => {
-                                  console.error('Failed to load image ' + image.image_id + ':', image.image_url);
-                                  handleImageError(image.image_id);
-                                }}
-                                style={{
-                                  display: imageLoadStates[image.image_id] === 'error' ? 'none' : 'block'
-                                }}
-                              />
-                            </>
-                          ) : (
-                            <div className="flex flex-col items-center justify-center">
-                              <i className="fa fa-image text-4xl text-gray-400 mb-2"></i>
-                              <span className="text-xs text-gray-500">No URL</span>
-                            </div>
-                          )}
-                          
-                          {/* Error state */}
-                          {imageLoadStates[image.image_id] === 'error' && (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-100">
-                              <i className="fa fa-exclamation-triangle text-3xl text-red-400 mb-2"></i>
-                              <span className="text-xs text-red-500">Failed to load</span>
-                            </div>
-                          )}
-                        </div>
-                        <p className="text-sm font-medium mt-2 truncate">{image.camera_name}</p>
-                        <p className="text-xs text-gray-500 truncate">{image.image_id}</p>
-                      </div>
+                        image={image}
+                        onSelect={handleSelectImage}
+                        isVisible={visibleImages.has(image.image_id)}
+                        imageObserver={imageObserver.current}
+                        onLoad={() => handleImageLoad(image.image_id)}
+                        onError={() => handleImageError(image.image_id)}
+                        loadState={imageLoadStates[image.image_id]}
+                      />
                     ))}
                   </div>
                 )}
@@ -1153,6 +1145,82 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
           </div>
         )}
       </div>
+    </div>
+  );
+};
+
+// Separate component for image thumbnails with lazy loading
+const ImageThumbnail = ({ image, onSelect, isVisible, imageObserver, onLoad, onError, loadState }) => {
+  const ref = useRef(null);
+  
+  useEffect(() => {
+    const element = ref.current;
+    if (element && imageObserver) {
+      imageObserver.observe(element);
+    }
+    
+    return () => {
+      if (element && imageObserver) {
+        imageObserver.unobserve(element);
+      }
+    };
+  }, [imageObserver]);
+  
+  return (
+    <div
+      ref={ref}
+      data-image-id={image.image_id}
+      onClick={() => onSelect(image)}
+      className="cursor-pointer border rounded-lg p-2 hover:border-blue-500 transition-colors"
+    >
+      <div className="bg-gray-200 h-32 rounded flex items-center justify-center overflow-hidden relative">
+        {!isVisible ? (
+          // Placeholder while not visible
+          <div className="flex items-center justify-center">
+            <i className="fa fa-image text-3xl text-gray-300"></i>
+          </div>
+        ) : image.image_url ? (
+          <>
+            {/* Show spinner until loaded */}
+            {loadState !== 'loaded' && loadState !== 'error' && (
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-100 z-10">
+                <i className="fa fa-spinner fa-spin text-xl text-gray-400"></i>
+              </div>
+            )}
+            <img 
+              src={image.image_url} 
+              alt={image.camera_name}
+              className="h-full w-full object-cover"
+              loading="lazy"
+              onLoad={onLoad}
+              onError={(e) => {
+                console.error('Failed to load image:', image.image_id);
+                onError();
+              }}
+              style={{
+                display: loadState === 'error' ? 'none' : 'block',
+                opacity: loadState === 'loaded' ? 1 : 0,
+                transition: 'opacity 0.3s ease-in-out'
+              }}
+            />
+          </>
+        ) : (
+          <div className="flex flex-col items-center justify-center">
+            <i className="fa fa-image text-4xl text-gray-400 mb-2"></i>
+            <span className="text-xs text-gray-500">No URL</span>
+          </div>
+        )}
+        
+        {/* Error state */}
+        {loadState === 'error' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-100">
+            <i className="fa fa-exclamation-triangle text-3xl text-red-400 mb-2"></i>
+            <span className="text-xs text-red-500">Failed to load</span>
+          </div>
+        )}
+      </div>
+      <p className="text-sm font-medium mt-2 truncate">{image.camera_name}</p>
+      <p className="text-xs text-gray-500 truncate">{image.image_id}</p>
     </div>
   );
 };
