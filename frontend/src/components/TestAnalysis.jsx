@@ -35,10 +35,10 @@ const ModelResultCard = ({ result, image }) => {
   const isOpenAI = result.model_provider === 'openai';
   
   return (
-    <div className={`p-4 bg-gray-50 rounded-lg border-2 ${isOpenAI ? 'border-blue-200' : 'border-purple-200'}`}>
+    <div className={isOpenAI ? 'p-4 bg-gray-50 rounded-lg border-2 border-blue-200' : 'p-4 bg-gray-50 rounded-lg border-2 border-purple-200'}>
       <div className="flex justify-between items-start mb-3">
         <div>
-          <h4 className={`font-semibold text-lg ${isOpenAI ? 'text-blue-700' : 'text-purple-700'}`}>
+          <h4 className={isOpenAI ? 'font-semibold text-lg text-blue-700' : 'font-semibold text-lg text-purple-700'}>
             {isOpenAI ? 'OpenAI' : 'Google Gemini'}
           </h4>
           <p className="text-sm text-gray-600">{result.model_name}</p>
@@ -65,10 +65,10 @@ const ModelResultCard = ({ result, image }) => {
             <div className="bg-white p-3 rounded border border-gray-200 mb-3">
               <div className="flex justify-between items-center mb-2">
                 <h5 className="font-medium text-sm">Decision</h5>
-                <span className={`text-sm font-semibold ${
-                  result.confidence >= 0.8 ? 'text-green-600' : 
-                  result.confidence >= 0.5 ? 'text-yellow-600' : 'text-red-600'
-                }`}>
+                <span className={
+                  result.confidence >= 0.8 ? 'text-sm font-semibold text-green-600' : 
+                  result.confidence >= 0.5 ? 'text-sm font-semibold text-yellow-600' : 'text-sm font-semibold text-red-600'
+                }>
                   Confidence: {((result.result?.confidence || result.confidence) * 100).toFixed(0)}%
                 </span>
               </div>
@@ -641,7 +641,7 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
                     disabled={loadingImages}
                     className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <i className={`fa ${loadingImages ? 'fa-spinner fa-spin' : 'fa-refresh'} mr-1"></i>
+                    <i className={loadingImages ? 'fa fa-spinner fa-spin mr-1' : 'fa fa-refresh mr-1'}></i>
                     Refresh
                   </button>
                   <button
@@ -739,13 +739,13 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
               <button
                 key={model.id}
                 onClick={() => handleModelToggle(model.id)}
-                className={`p-3 rounded-lg border-2 transition-all ${
+                className={
                   selectedModels.includes(model.id)
                     ? model.provider === 'openai' 
-                      ? 'border-blue-500 bg-blue-50 text-blue-700'
-                      : 'border-purple-500 bg-purple-50 text-purple-700'
-                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
-                }`}
+                      ? 'p-3 rounded-lg border-2 transition-all border-blue-500 bg-blue-50 text-blue-700'
+                      : 'p-3 rounded-lg border-2 transition-all border-purple-500 bg-purple-50 text-purple-700'
+                    : 'p-3 rounded-lg border-2 transition-all border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                }
               >
                 <div className="font-medium">{model.name}</div>
                 <div className="text-xs mt-1">
@@ -755,11 +755,11 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
             ))}
             <button
               onClick={() => handleModelToggle('both')}
-              className={`p-3 rounded-lg border-2 transition-all ${
+              className={
                 selectedModels.length === modelOptions.length
-                  ? 'border-green-500 bg-green-50 text-green-700'
-                  : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
-              }`}
+                  ? 'p-3 rounded-lg border-2 transition-all border-green-500 bg-green-50 text-green-700'
+                  : 'p-3 rounded-lg border-2 transition-all border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+              }
             >
               <div className="font-medium">Compare All</div>
               <div className="text-xs mt-1">Side-by-side</div>
@@ -864,11 +864,11 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
         <button
           onClick={handleAnalyze}
           disabled={!selectedImage || analyzing}
-          className={`w-full py-2 px-4 rounded-lg font-medium ${
+          className={
             !selectedImage || analyzing
-              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              : 'bg-blue-500 hover:bg-blue-600 text-white'
-          }`}
+              ? 'w-full py-2 px-4 rounded-lg font-medium bg-gray-300 text-gray-500 cursor-not-allowed'
+              : 'w-full py-2 px-4 rounded-lg font-medium bg-blue-500 hover:bg-blue-600 text-white'
+          }
         >
           {analyzing ? 'Analyzing...' : 'Analyze Image'}
         </button>
@@ -915,7 +915,7 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
                   <div>
                     <span className="font-medium text-gray-600">Confidence:</span>
                     <p className="font-semibold">
-                      <span className={`${result.confidence >= 0.8 ? 'text-green-600' : result.confidence >= 0.5 ? 'text-yellow-600' : 'text-red-600'}`}>
+                      <span className={result.confidence >= 0.8 ? 'text-green-600' : result.confidence >= 0.5 ? 'text-yellow-600' : 'text-red-600'}>
                         {((result.result?.confidence || result.confidence) * 100).toFixed(0)}%
                       </span>
                     </p>
@@ -1129,11 +1129,11 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
                   <button
                     onClick={handleSavePrompt}
                     disabled={!saveAsDefault && !savePromptName.trim()}
-                    className={`flex-1 px-4 py-2 rounded text-white ${
+                    className={
                       (!saveAsDefault && !savePromptName.trim())
-                        ? 'bg-gray-300 cursor-not-allowed'
-                        : 'bg-green-500 hover:bg-green-600'
-                    }`}
+                        ? 'flex-1 px-4 py-2 rounded text-white bg-gray-300 cursor-not-allowed'
+                        : 'flex-1 px-4 py-2 rounded text-white bg-green-500 hover:bg-green-600'
+                    }
                   >
                     {saveAsDefault ? 'Save as Default' : 'Save Copy'}
                   </button>
