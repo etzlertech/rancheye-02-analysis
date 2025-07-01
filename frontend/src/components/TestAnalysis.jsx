@@ -102,8 +102,11 @@ const TestAnalysis = ({ configs, onAnalysisComplete }) => {
               onClick={() => setShowImagePicker(true)}
               className="w-full border-2 border-dashed border-gray-300 rounded-lg py-4 hover:border-gray-400 transition-colors"
             >
-              <i className="fa fa-image text-gray-400 text-2xl mb-2"></i>
-              <p className="text-gray-600">Click to select from storage</p>
+              <div className="text-center">
+                <i className="fa fa-database text-gray-400 text-3xl mb-2"></i>
+                <p className="text-gray-600 font-medium">Browse Supabase Storage</p>
+                <p className="text-gray-500 text-sm mt-1">Select from captured images</p>
+              </div>
             </button>
           )}
         </div>
