@@ -1,8 +1,13 @@
 [phases.setup]
-nixPkgs = ["nodejs_18"]
+nixPkgs = ["nodejs_18", "python311", "gcc"]
 
 [phases.install]
-cmds = ["npm --version", "node --version"]
+cmds = [
+    "npm --version", 
+    "node --version",
+    "python --version",
+    "pip install -r requirements.txt"
+]
 
 [phases.build]
 cmds = [
