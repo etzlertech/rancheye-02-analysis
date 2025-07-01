@@ -2,6 +2,21 @@ import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import api from '../utils/api';
 
+// Helper function to calculate actual cost
+const calculateActualCost = (modelName, tokens) => {
+  const costs = {
+    'gpt-4o-mini': { input: 0.15, output: 0.60 },
+    'gpt-4o': { input: 5.00, output: 15.00 },
+    'gemini-1.5-flash': { input: 0.35, output: 1.05 },
+    'gemini-2.0-flash-exp': { input: 0.00, output: 0.00 }
+  };
+  
+  const modelCost = costs[modelName] || { input: 0, output: 0 };
+  // Estimate 50/50 split between input and output tokens
+  const estimatedCost = (tokens / 2000000) * (modelCost.input + modelCost.output);
+  return estimatedCost.toFixed(6);
+};
+
 // Component to display individual model results
 const ModelResultCard = ({ result, image }) => {
   const isOpenAI = result.model_provider === 'openai';
@@ -17,7 +32,12 @@ const ModelResultCard = ({ result, image }) => {
         </div>
         <div className="text-right">
           <p className="text-sm text-gray-600">Processing: {result.processing_time_ms}ms</p>
-          <p className="text-sm text-gray-600">Tokens: {result.tokens_used}</p>
+          <p className="text-sm text-gray-600">Tokens: {result.tokens_used || 0}</p>
+          {result.tokens_used && (
+            <p className="text-xs text-green-600">
+              Cost: ${calculateActualCost(result.model_name, result.tokens_used)}
+            </p>
+          )}
         </div>
       </div>
       
@@ -119,7 +139,7 @@ const TestAnalysis = ({ configs, onAnalysisComplete }) => {
   const [showImagePicker, setShowImagePicker] = useState(false);
   const [customPrompt, setCustomPrompt] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [compareModels, setCompareModels] = useState(false);
+  const [selectedModels, setSelectedModels] = useState(['openai-gpt-4o-mini']);
 
   const analysisTypes = [
     { value: 'gate_detection', label: 'Gate Detection' },
@@ -128,6 +148,41 @@ const TestAnalysis = ({ configs, onAnalysisComplete }) => {
     { value: 'feed_bin_status', label: 'Feed Bin Status' },
     { value: 'animal_detection', label: 'Animal Detection' },
     { value: 'custom', label: 'Custom Analysis' },
+  ];
+
+  const modelOptions = [
+    { 
+      id: 'openai-gpt-4o-mini', 
+      provider: 'openai',
+      name: 'GPT-4o-mini',
+      model: 'gpt-4o-mini',
+      inputCost: 0.15, // per 1M tokens
+      outputCost: 0.60  // per 1M tokens
+    },
+    { 
+      id: 'openai-gpt-4o', 
+      provider: 'openai',
+      name: 'GPT-4o',
+      model: 'gpt-4o',
+      inputCost: 5.00, // per 1M tokens
+      outputCost: 15.00  // per 1M tokens
+    },
+    { 
+      id: 'gemini-1.5-flash', 
+      provider: 'gemini',
+      name: 'Gemini 1.5 Flash',
+      model: 'gemini-1.5-flash',
+      inputCost: 0.35, // per 1M tokens
+      outputCost: 1.05  // per 1M tokens
+    },
+    { 
+      id: 'gemini-2.0-flash', 
+      provider: 'gemini',
+      name: 'Gemini 2.0 Flash',
+      model: 'gemini-2.0-flash-exp',
+      inputCost: 0.00, // Free during preview
+      outputCost: 0.00  // Free during preview
+    }
   ];
 
   const defaultPrompts = {
@@ -211,6 +266,44 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
     }
   }, [selectedType]);
 
+  const handleModelToggle = (modelId) => {
+    if (modelId === 'both') {
+      // Select all models
+      setSelectedModels(modelOptions.map(m => m.id));
+    } else {
+      // Toggle individual model
+      setSelectedModels(prev => {
+        if (prev.includes(modelId)) {
+          // Don't allow deselecting all models
+          if (prev.length > 1) {
+            return prev.filter(id => id !== modelId);
+          }
+          return prev;
+        } else {
+          return [...prev, modelId];
+        }
+      });
+    }
+  };
+
+  const getEstimatedCost = () => {
+    // Estimate tokens: ~200 for prompt + ~100 for image description + ~300 for response
+    const estimatedInputTokens = 300;
+    const estimatedOutputTokens = 300;
+    
+    let totalCost = 0;
+    selectedModels.forEach(modelId => {
+      const model = modelOptions.find(m => m.id === modelId);
+      if (model) {
+        const inputCost = (estimatedInputTokens / 1000000) * model.inputCost;
+        const outputCost = (estimatedOutputTokens / 1000000) * model.outputCost;
+        totalCost += inputCost + outputCost;
+      }
+    });
+    
+    return totalCost;
+  };
+
   const loadImages = async () => {
     setLoadingImages(true);
     try {
@@ -244,7 +337,8 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
         image_id: selectedImage.image_id,
         analysis_type: selectedType,
         custom_prompt: customPrompt,
-        compare_models: compareModels
+        selected_models: selectedModels,
+        compare_models: selectedModels.length > 1
       });
       
       setResult({
@@ -267,7 +361,7 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
 
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
-      <h2 className="text-xl font-bold mb-4">Test Analysis</h2>
+      <h2 className="text-xl font-bold mb-4">AI Image Analysis</h2>
       
       <div className="space-y-4">
         <div>
@@ -355,6 +449,63 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
           </div>
         )}
         
+        {/* Model Selection */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Select AI Models
+          </label>
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 mb-2">
+            {modelOptions.map((model) => (
+              <button
+                key={model.id}
+                onClick={() => handleModelToggle(model.id)}
+                className={`p-3 rounded-lg border-2 transition-all ${
+                  selectedModels.includes(model.id)
+                    ? model.provider === 'openai' 
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-purple-500 bg-purple-50 text-purple-700'
+                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <div className="font-medium">{model.name}</div>
+                <div className="text-xs mt-1">
+                  ${((model.inputCost + model.outputCost) / 2).toFixed(2)}/1M tokens
+                </div>
+              </button>
+            ))}
+            <button
+              onClick={() => handleModelToggle('both')}
+              className={`p-3 rounded-lg border-2 transition-all ${
+                selectedModels.length === modelOptions.length
+                  ? 'border-green-500 bg-green-50 text-green-700'
+                  : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <div className="font-medium">Compare All</div>
+              <div className="text-xs mt-1">Side-by-side</div>
+            </button>
+          </div>
+          
+          {/* Cost Estimation */}
+          <div className="bg-gray-50 p-3 rounded-lg text-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-gray-600">Estimated tokens:</span>
+              <span className="font-medium">~600 tokens</span>
+            </div>
+            <div className="flex justify-between items-center mt-1">
+              <span className="text-gray-600">Estimated cost:</span>
+              <span className="font-medium text-green-600">
+                ${getEstimatedCost().toFixed(4)}
+              </span>
+            </div>
+            {selectedModels.length > 1 && (
+              <div className="text-xs text-gray-500 mt-2">
+                * Cost for {selectedModels.length} models combined
+              </div>
+            )}
+          </div>
+        </div>
+        
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Analysis Type
@@ -398,19 +549,6 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
               </p>
             </div>
           )}
-        </div>
-        
-        <div className="flex items-center space-x-2">
-          <input
-            type="checkbox"
-            id="compareModels"
-            checked={compareModels}
-            onChange={(e) => setCompareModels(e.target.checked)}
-            className="rounded border-gray-300"
-          />
-          <label htmlFor="compareModels" className="text-sm text-gray-700">
-            Compare OpenAI and Gemini responses
-          </label>
         </div>
         
         <button

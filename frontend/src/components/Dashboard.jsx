@@ -91,6 +91,15 @@ const Dashboard = () => {
       <Header />
       <StatsCards />
       
+      {/* Test Analysis Section - Moved to Top */}
+      <div className="mb-6">
+        <TestAnalysis 
+          configs={configs}
+          onAnalysisComplete={loadData}
+        />
+      </div>
+      
+      {/* Stats and Recent Data */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           <RecentImages 
@@ -109,10 +118,6 @@ const Dashboard = () => {
             alerts={alerts}
             loading={loading}
             onAcknowledge={handleAcknowledgeAlert}
-          />
-          <TestAnalysis 
-            configs={configs}
-            onAnalysisComplete={loadData}
           />
         </div>
       </div>
