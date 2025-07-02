@@ -1163,45 +1163,61 @@ async def get_analysis_stats():
         ).eq('status', 'pending').execute()
         
         # Cost tracking from AI analysis logs
-        # Get today's analyses with costs
-        today_str = today.isoformat()
-        tomorrow_str = (today + timedelta(days=1)).isoformat()
-        
-        cost_results = supabase.client.table('ai_analysis_logs').select(
-            'estimated_cost'
-        ).gte('created_at', today_str).lt('created_at', tomorrow_str).execute()
-        
-        # Also get token counts for more accurate cost calculation
-        token_results = supabase.client.table('ai_analysis_logs').select(
-            'model_provider, model_name, input_tokens, output_tokens, tokens_used'
-        ).gte('created_at', today_str).lt('created_at', tomorrow_str).execute()
-        
-        # Calculate costs
-        today_cost = 0.0
-        if cost_results.data:
-            # First try to use estimated_cost if available
-            today_cost = sum(c.get('estimated_cost', 0) or 0 for c in cost_results.data)
-        
-        # If no costs recorded, calculate from tokens
-        if today_cost == 0 and token_results.data:
-            for record in token_results.data:
-                if record.get('input_tokens') and record.get('output_tokens'):
+        # Helper function to calculate cost from records
+        def calculate_period_cost(records):
+            total_cost = 0.0
+            for record in records:
+                # First check if we have a pre-calculated estimated_cost
+                if record.get('estimated_cost'):
+                    total_cost += record['estimated_cost']
+                # Otherwise calculate from tokens
+                elif record.get('input_tokens') and record.get('output_tokens'):
                     # Use actual token counts
                     cost = calculate_token_cost(
                         record['model_name'], 
                         record['input_tokens'], 
                         record['output_tokens']
                     )
+                    total_cost += cost
                 elif record.get('tokens_used'):
                     # Estimate with 30/70 split
                     cost = calculate_token_cost(
-                        record['model_name'],
+                        record.get('model_name', 'gpt-4o-mini'),
                         int(record['tokens_used'] * 0.3),
                         int(record['tokens_used'] * 0.7)
                     )
-                else:
-                    cost = 0
-                today_cost += cost
+                    total_cost += cost
+            return total_cost
+        
+        # Get today's costs
+        today_str = today.isoformat()
+        tomorrow_str = (today + timedelta(days=1)).isoformat()
+        
+        today_logs = supabase.client.table('ai_analysis_logs').select(
+            'model_name, input_tokens, output_tokens, tokens_used, estimated_cost'
+        ).gte('created_at', today_str).lt('created_at', tomorrow_str).execute()
+        
+        today_cost = calculate_period_cost(today_logs.data if today_logs.data else [])
+        
+        # Get this week's costs
+        week_logs = supabase.client.table('ai_analysis_logs').select(
+            'model_name, input_tokens, output_tokens, tokens_used, estimated_cost'
+        ).gte('created_at', week_ago.isoformat()).execute()
+        
+        week_cost = calculate_period_cost(week_logs.data if week_logs.data else [])
+        
+        # Get all-time costs
+        all_time_logs = supabase.client.table('ai_analysis_logs').select(
+            'model_name, input_tokens, output_tokens, tokens_used, estimated_cost'
+        ).execute()
+        
+        all_time_cost = calculate_period_cost(all_time_logs.data if all_time_logs.data else [])
+        
+        # Log for debugging
+        print(f"Cost calculation - Today: ${today_cost:.4f}, Week: ${week_cost:.4f}, All-time: ${all_time_cost:.4f}")
+        print(f"Today logs count: {len(today_logs.data) if today_logs.data else 0}")
+        print(f"Week logs count: {len(week_logs.data) if week_logs.data else 0}")
+        print(f"All-time logs count: {len(all_time_logs.data) if all_time_logs.data else 0}")
         
         return {
             "stats": {
@@ -1209,11 +1225,68 @@ async def get_analysis_stats():
                 "analyses_week": week_results.count or 0,
                 "active_alerts": active_alerts.count or 0,
                 "pending_tasks": pending_tasks.count or 0,
-                "cost_today": round(today_cost, 4)
+                "cost_today": round(today_cost, 6),
+                "cost_week": round(week_cost, 6),
+                "cost_all_time": round(all_time_cost, 6)
             }
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/stats/debug")
+async def debug_cost_calculation():
+    """Debug endpoint to check cost calculation"""
+    try:
+        # Get all AI analysis logs
+        all_logs = supabase.client.table('ai_analysis_logs').select(
+            'id, created_at, model_name, input_tokens, output_tokens, tokens_used, estimated_cost'
+        ).order('created_at', desc=True).limit(10).execute()
+        
+        # Calculate costs for each record
+        debug_info = []
+        for log in (all_logs.data or []):
+            record_info = {
+                'id': log['id'],
+                'created_at': log['created_at'],
+                'model_name': log.get('model_name', 'unknown'),
+                'input_tokens': log.get('input_tokens'),
+                'output_tokens': log.get('output_tokens'),
+                'tokens_used': log.get('tokens_used'),
+                'estimated_cost': log.get('estimated_cost'),
+                'calculated_cost': 0
+            }
+            
+            # Calculate cost
+            if log.get('input_tokens') and log.get('output_tokens'):
+                record_info['calculated_cost'] = calculate_token_cost(
+                    log.get('model_name', 'gpt-4o-mini'),
+                    log['input_tokens'],
+                    log['output_tokens']
+                )
+                record_info['cost_method'] = 'exact_tokens'
+            elif log.get('tokens_used'):
+                record_info['calculated_cost'] = calculate_token_cost(
+                    log.get('model_name', 'gpt-4o-mini'),
+                    int(log['tokens_used'] * 0.3),
+                    int(log['tokens_used'] * 0.7)
+                )
+                record_info['cost_method'] = 'estimated_split'
+            else:
+                record_info['cost_method'] = 'no_token_data'
+            
+            debug_info.append(record_info)
+        
+        # Get summary stats
+        stats = await get_analysis_stats()
+        
+        return {
+            'current_stats': stats['stats'],
+            'recent_logs': debug_info,
+            'total_records': len(all_logs.data) if all_logs.data else 0
+        }
+    except Exception as e:
+        return {'error': str(e)}
 
 
 @app.post("/api/upload/analyze")

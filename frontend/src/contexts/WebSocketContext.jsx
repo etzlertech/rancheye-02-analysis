@@ -18,6 +18,8 @@ export const WebSocketProvider = ({ children }) => {
     active_alerts: 0,
     pending_tasks: 0,
     cost_today: 0.0,
+    cost_week: 0.0,
+    cost_all_time: 0.0,
   });
   const [connected, setConnected] = useState(false);
 
