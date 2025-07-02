@@ -535,7 +535,10 @@ async def test_analysis(request: dict):
                                     primary_result.raw_response, result['final_result'],
                                     formatted_result.get('confidence', 0),
                                     primary_result.processing_time_ms,
-                                    primary_result.tokens_used, session_id
+                                    primary_result.tokens_used, session_id,
+                                    None,  # error_message
+                                    primary_result.input_tokens,
+                                    primary_result.output_tokens
                                 )
                             
                             results.append(formatted_result)
@@ -552,7 +555,8 @@ async def test_analysis(request: dict):
                             await save_test_analysis_log(
                                 image_metadata, analysis_type, custom_prompt,
                                 model_info['provider'], model_info['model'],
-                                error_msg, {}, 0, 0, 0, session_id, error_msg
+                                error_msg, {}, 0, 0, 0, session_id, error_msg,
+                                None, None  # input_tokens, output_tokens
                             )
                     else:
                         results.append({
@@ -561,6 +565,17 @@ async def test_analysis(request: dict):
                             'error': f"API key not configured for {model_info['provider']}",
                             'analysis_type': analysis_type
                         })
+            
+            # Broadcast stats update after saving all analyses
+            try:
+                stats = await get_analysis_stats()
+                await manager.broadcast({
+                    "type": "stats_update",
+                    "data": stats["stats"],
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+            except Exception as e:
+                print(f"Failed to broadcast stats update: {e}")
             
             return {
                 'compare_mode': True,
@@ -651,8 +666,22 @@ async def test_analysis(request: dict):
                 primary_result.raw_response, final_result,
                 final_result.get('confidence', 0.95) if isinstance(final_result, dict) else 0.95,
                 primary_result.processing_time_ms,
-                primary_result.tokens_used, session_id
+                primary_result.tokens_used, session_id,
+                None,  # error_message
+                primary_result.input_tokens,
+                primary_result.output_tokens
             )
+            
+            # Broadcast stats update after saving analysis
+            try:
+                stats = await get_analysis_stats()
+                await manager.broadcast({
+                    "type": "stats_update",
+                    "data": stats["stats"],
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+            except Exception as e:
+                print(f"Failed to broadcast stats update: {e}")
             
             return {
                 'analysis_type': analysis_type,
@@ -673,7 +702,8 @@ async def test_analysis(request: dict):
                 image_metadata, analysis_type, custom_prompt,
                 test_config['model_provider'], test_config['model_name'],
                 'Analysis failed - no result returned', {}, 0, 0, 0, session_id,
-                'Analysis failed - no result returned'
+                'Analysis failed - no result returned',
+                None, None  # input_tokens, output_tokens
             )
             
             return {
@@ -916,10 +946,24 @@ async def save_test_analysis_log(
     processing_time_ms: int,
     tokens_used: int,
     session_id: str,
-    error_message: Optional[str] = None
+    error_message: Optional[str] = None,
+    input_tokens: Optional[int] = None,
+    output_tokens: Optional[int] = None
 ) -> Optional[str]:
     """Save comprehensive log for test analysis"""
     try:
+        # Calculate cost if we have token counts
+        estimated_cost = 0.0
+        if input_tokens and output_tokens:
+            estimated_cost = calculate_token_cost(model_name, input_tokens, output_tokens)
+        elif tokens_used:
+            # Estimate with 30/70 split if we only have total
+            estimated_cost = calculate_token_cost(
+                model_name,
+                int(tokens_used * 0.3),
+                int(tokens_used * 0.7)
+            )
+        
         return await supabase.save_ai_analysis_log(
             image_id=image_data['image_id'],
             image_url=image_data.get('image_url'),
@@ -937,6 +981,9 @@ async def save_test_analysis_log(
             error_message=error_message,
             processing_time_ms=processing_time_ms,
             tokens_used=tokens_used,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            estimated_cost=estimated_cost,
             session_id=session_id,
             user_initiated=True,  # Test analyses are always user-initiated
             notes=f"Test analysis via web interface"
@@ -1017,6 +1064,26 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
     return prompts.get(analysis_type, prompts['animal_detection'])
 
 
+def calculate_token_cost(model_name: str, input_tokens: int, output_tokens: int) -> float:
+    """Calculate cost based on actual token counts"""
+    # Pricing per 1M tokens (as of 2024)
+    costs = {
+        'gpt-4o-mini': { 'input': 0.15, 'output': 0.60 },
+        'gpt-4o': { 'input': 5.00, 'output': 15.00 },
+        'gpt-4-turbo': { 'input': 10.00, 'output': 30.00 },
+        'gpt-4-vision-preview': { 'input': 10.00, 'output': 30.00 },
+        'gemini-1.5-flash': { 'input': 0.10, 'output': 0.40 },
+        'gemini-2.0-flash-exp': { 'input': 0.00, 'output': 0.00 },
+        'gemini-2.5-pro': { 'input': 1.25, 'output': 10.00 }
+    }
+    
+    model_cost = costs.get(model_name, { 'input': 0, 'output': 0 })
+    input_cost = (input_tokens / 1_000_000) * model_cost['input']
+    output_cost = (output_tokens / 1_000_000) * model_cost['output']
+    
+    return input_cost + output_cost
+
+
 @app.get("/api/stats/summary")
 async def get_analysis_stats():
     try:
@@ -1045,12 +1112,46 @@ async def get_analysis_stats():
             'id', count='exact'
         ).eq('status', 'pending').execute()
         
-        # Cost tracking
-        costs = supabase.client.table('analysis_costs').select(
-            'estimated_cost'
-        ).gte('date', today.isoformat()).execute()
+        # Cost tracking from AI analysis logs
+        # Get today's analyses with costs
+        today_str = today.isoformat()
+        tomorrow_str = (today + timedelta(days=1)).isoformat()
         
-        today_cost = sum(c['estimated_cost'] for c in costs.data) if costs.data else 0
+        cost_results = supabase.client.table('ai_analysis_logs').select(
+            'estimated_cost'
+        ).gte('created_at', today_str).lt('created_at', tomorrow_str).execute()
+        
+        # Also get token counts for more accurate cost calculation
+        token_results = supabase.client.table('ai_analysis_logs').select(
+            'model_provider, model_name, input_tokens, output_tokens, tokens_used'
+        ).gte('created_at', today_str).lt('created_at', tomorrow_str).execute()
+        
+        # Calculate costs
+        today_cost = 0.0
+        if cost_results.data:
+            # First try to use estimated_cost if available
+            today_cost = sum(c.get('estimated_cost', 0) or 0 for c in cost_results.data)
+        
+        # If no costs recorded, calculate from tokens
+        if today_cost == 0 and token_results.data:
+            for record in token_results.data:
+                if record.get('input_tokens') and record.get('output_tokens'):
+                    # Use actual token counts
+                    cost = calculate_token_cost(
+                        record['model_name'], 
+                        record['input_tokens'], 
+                        record['output_tokens']
+                    )
+                elif record.get('tokens_used'):
+                    # Estimate with 30/70 split
+                    cost = calculate_token_cost(
+                        record['model_name'],
+                        int(record['tokens_used'] * 0.3),
+                        int(record['tokens_used'] * 0.7)
+                    )
+                else:
+                    cost = 0
+                today_cost += cost
         
         return {
             "stats": {

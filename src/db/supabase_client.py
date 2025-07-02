@@ -270,7 +270,10 @@ class SupabaseClient:
         notes: Optional[str] = None,
         tags: Optional[List[str]] = None,
         model_temperature: float = 0.3,
-        max_tokens: int = 500
+        max_tokens: int = 500,
+        input_tokens: Optional[int] = None,
+        output_tokens: Optional[int] = None,
+        estimated_cost: Optional[float] = None
     ) -> Optional[str]:
         """Save comprehensive AI analysis log entry"""
         try:
@@ -293,6 +296,9 @@ class SupabaseClient:
                 'error_message': error_message,
                 'processing_time_ms': processing_time_ms,
                 'tokens_used': tokens_used,
+                'input_tokens': input_tokens,
+                'output_tokens': output_tokens,
+                'estimated_cost': estimated_cost,
                 'config_id': config_id,
                 'task_id': task_id,
                 'session_id': session_id,
