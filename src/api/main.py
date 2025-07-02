@@ -1234,6 +1234,44 @@ async def get_analysis_stats():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/costs/check")
+async def check_costs_in_db():
+    """Check what costs are actually in the database"""
+    try:
+        # Get today's logs
+        today = datetime.utcnow().date()
+        tomorrow = today + timedelta(days=1)
+        
+        today_logs = supabase.client.table('ai_analysis_logs').select(
+            'id, created_at, model_name, tokens_used, input_tokens, output_tokens, estimated_cost'
+        ).gte('created_at', today.isoformat()).lt('created_at', tomorrow.isoformat()).order('created_at', desc=True).limit(10).execute()
+        
+        # Check if columns exist
+        sample_log = today_logs.data[0] if today_logs.data else {}
+        
+        return {
+            'database_check': {
+                'today_records': len(today_logs.data) if today_logs.data else 0,
+                'has_input_tokens_column': 'input_tokens' in sample_log,
+                'has_output_tokens_column': 'output_tokens' in sample_log,
+                'has_estimated_cost_column': 'estimated_cost' in sample_log,
+            },
+            'recent_logs': today_logs.data if today_logs.data else [],
+            'instructions': {
+                'if_missing_columns': 'Run the SQL in database/ALTER_TABLE_add_tokens.sql in Supabase SQL Editor',
+                'sql_to_run': """
+                    ALTER TABLE ai_analysis_logs 
+                    ADD COLUMN IF NOT EXISTS input_tokens INTEGER;
+                    
+                    ALTER TABLE ai_analysis_logs 
+                    ADD COLUMN IF NOT EXISTS output_tokens INTEGER;
+                """
+            }
+        }
+    except Exception as e:
+        return {'error': str(e)}
+
+
 @app.get("/api/stats/debug")
 async def debug_cost_calculation():
     """Debug endpoint to check cost calculation"""

@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS ai_analysis_logs (
     -- Performance Metrics
     processing_time_ms INTEGER,
     tokens_used INTEGER,
+    input_tokens INTEGER, -- Separate input token count
+    output_tokens INTEGER, -- Separate output token count
     estimated_cost DECIMAL(10, 6), -- Cost in USD
     
     -- Context Information
