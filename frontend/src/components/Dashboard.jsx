@@ -65,15 +65,15 @@ const Dashboard = () => {
     }
   };
 
+  const [selectedImageForAnalysis, setSelectedImageForAnalysis] = useState(null);
+
   const handleAnalyze = async (imageId) => {
-    try {
-      await api.post('/api/analysis/analyze', {
-        image_id: imageId
-      });
-      // Reload data after triggering analysis
-      setTimeout(loadData, 2000);
-    } catch (error) {
-      console.error('Error triggering analysis:', error);
+    // Find the image by ID and pass it to TestAnalysis
+    const image = images.find(img => img.image_id === imageId);
+    if (image) {
+      setSelectedImageForAnalysis(image);
+      // Scroll to top where TestAnalysis is located
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
@@ -95,6 +95,8 @@ const Dashboard = () => {
         <TestAnalysis 
           configs={configs}
           onAnalysisComplete={loadData}
+          preselectedImage={selectedImageForAnalysis}
+          onImageProcessed={() => setSelectedImageForAnalysis(null)}
         />
       </div>
       

@@ -152,7 +152,7 @@ const ModelResultCard = ({ result, image }) => {
   );
 };
 
-const TestAnalysis = ({ configs, onAnalysisComplete }) => {
+const TestAnalysis = ({ configs, onAnalysisComplete, preselectedImage, onImageProcessed }) => {
   const [images, setImages] = useState([]);
   const [selectedImage, setSelectedImage] = useState(null);
   const [selectedType, setSelectedType] = useState('gate_detection');
@@ -353,6 +353,19 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
   useEffect(() => {
     loadCustomPrompts();
   }, []);
+
+  // Handle preselected image from recent images
+  useEffect(() => {
+    if (preselectedImage) {
+      setSelectedImage(preselectedImage);
+      setResult(null);
+      if (onImageProcessed) {
+        onImageProcessed();
+      }
+      // Show a toast notification
+      toast.success('Image loaded from recent images');
+    }
+  }, [preselectedImage, onImageProcessed]);
 
   const loadCustomPrompts = async () => {
     try {
