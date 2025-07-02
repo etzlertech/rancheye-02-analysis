@@ -167,10 +167,19 @@ async def health_check():
     
     # Try to connect to Supabase
     db_status = "unknown"
+    storage_status = "unknown"
     try:
         # Simple query to test connection
         response = supabase.client.table('spypoint_images').select('id').limit(1).execute()
         db_status = "connected"
+        
+        # Test storage access
+        try:
+            # List files in bucket to test storage access
+            storage_files = supabase.client.storage.from_('spypoint-images').list(limit=1)
+            storage_status = f"connected (found {len(storage_files)} files)"
+        except Exception as e:
+            storage_status = f"error: {str(e)}"
     except Exception as e:
         db_status = f"error: {str(e)}"
     
@@ -178,7 +187,8 @@ async def health_check():
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat(),
         "env_vars": env_status,
-        "database": db_status
+        "database": db_status,
+        "storage": storage_status
     }
 
 
@@ -262,9 +272,11 @@ async def get_recent_images(limit: int = 20, thumbnail: bool = False):
             try:
                 # Run the sync Supabase client in a thread to avoid blocking
                 import asyncio
+                # Ensure storage path doesn't have leading slash
+                storage_path = image['storage_path'].lstrip('/')
                 signed_url = await asyncio.to_thread(
                     supabase.client.storage.from_('spypoint-images').create_signed_url,
-                    image['storage_path'],
+                    storage_path,
                     3600  # 1 hour expiration
                 )
                 if signed_url and 'signedURL' in signed_url:
@@ -275,8 +287,11 @@ async def get_recent_images(limit: int = 20, thumbnail: bool = False):
                         'url': url,
                         'expires': time.time() + CACHE_DURATION
                     }
+                else:
+                    print(f"No signed URL returned for {image['image_id']}: {signed_url}")
+                    image['image_url'] = f"/api/images/{image['image_id']}/preview"
             except Exception as e:
-                print(f"Error generating signed URL for {image['image_id']}: {e}")
+                print(f"Error generating signed URL for {image['image_id']}: {type(e).__name__}: {str(e)}")
                 # Use preview endpoint as fallback
                 image['image_url'] = f"/api/images/{image['image_id']}/preview"
             
@@ -288,8 +303,8 @@ async def get_recent_images(limit: int = 20, thumbnail: bool = False):
         await asyncio.gather(*tasks)
         
         # Count how many URLs were cached vs generated
-        cached_count = sum(1 for img in images if img.get('image_url') and cache_key in url_cache 
-                          for cache_key in [f"{img['image_id']}:{img.get('storage_path', '')}"]) 
+        cached_count = sum(1 for img in images if img.get('image_url') and 
+                          f"{img['image_id']}:{img.get('storage_path', '')}" in url_cache)
         
         print(f"URLs: {cached_count} cached, {len(images) - cached_count} generated in {time.time() - url_start_time:.2f}s")
         print(f"Total request time: {time.time() - start_time:.2f}s")
@@ -301,6 +316,41 @@ async def get_recent_images(limit: int = 20, thumbnail: bool = False):
     except Exception as e:
         print(f"Error fetching images: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/images/{image_id}/debug")
+async def debug_image_url(image_id: str):
+    """Debug endpoint to check image URL generation"""
+    try:
+        # Get image metadata
+        image_metadata = await supabase.get_image_metadata(image_id)
+        if not image_metadata:
+            return {"error": "Image not found", "image_id": image_id}
+        
+        result = {
+            "image_id": image_id,
+            "storage_path": image_metadata.get('storage_path'),
+            "has_storage_path": bool(image_metadata.get('storage_path')),
+            "image_url_in_db": image_metadata.get('image_url', 'None')
+        }
+        
+        # Try to generate signed URL
+        if image_metadata.get('storage_path'):
+            try:
+                storage_path = image_metadata['storage_path'].lstrip('/')
+                signed_url = supabase.client.storage.from_('spypoint-images').create_signed_url(
+                    storage_path,
+                    3600
+                )
+                result['signed_url_generated'] = bool(signed_url and 'signedURL' in signed_url)
+                result['signed_url'] = signed_url.get('signedURL') if signed_url else None
+                result['signed_url_raw'] = signed_url
+            except Exception as e:
+                result['signed_url_error'] = f"{type(e).__name__}: {str(e)}"
+        
+        return result
+    except Exception as e:
+        return {"error": str(e), "image_id": image_id}
 
 
 @app.get("/api/images/{image_id}/preview")
