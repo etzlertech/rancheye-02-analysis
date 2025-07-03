@@ -1,0 +1,192 @@
+{
+  "audit_date": "2025-07-02T19:29:56.016660",
+  "total_records": 2,
+  "logs_sample": [
+    {
+      "id": "07f8bbaa-58aa-43b4-becd-848c2decd7b9",
+      "image_id": "3969d142cb104e79fefb002d4b975c80",
+      "image_url": "https://s3.amazonaws.com/spypoint-production-account-ehcpvywr/67607ecd44b5e883fd44a4ba/6861ccbeac761b11fd1b517e/20250702/PICT0060_202507021058TXFrK.jpg?X-Amz-Expires=86400&X-Amz-Date=20250702T114136Z&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIA4TENZYKLZ2QLZNPE%2F20250702%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-SignedHeaders=host&X-Amz-Signature=5a9985afa5c2e3580a0ba830d56677498a93043ea6aaee41d7e7107837a3d0b2",
+      "camera_name": "cam-02-highwayGate",
+      "captured_at": "2025-07-02T11:41:37.34102+00:00",
+      "analysis_type": "gate_detection",
+      "prompt_text": "You are analyzing a trail camera image from a ranch. Look for any gates in the image and determine their status.\n\nalso, make note of any people, animals, or vehicles in the scene, and add that anaysis to the people, animals, vehicles part of JSON.\n\nAnalyze the image and respond ONLY with valid JSON in this exact format:\n{\n  \"gate_visible\": true or false,\n  \"gate_open\": true or false (null if no gate visible),\n  \"confidence\": 0.0 to 1.0,\n  \"reasoning\": \"Detailed explanation of what you see in the image and why you made this decision\",\n  \"visual_evidence\": \"Specific visual details that support your conclusion (e.g., gate posts, hinges, gaps, shadows)\"\n  \"people, animals, vehicles\" : \"details about an people, animals, or vehicles you see, give color, size, gender, make and model, what is being transported, etc\"\n}",
+      "custom_prompt": true,
+      "model_provider": "gemini",
+      "model_name": "gemini-2.5-pro",
+      "model_temperature": 0.3,
+      "max_tokens": 500,
+      "raw_response": "",
+      "parsed_response": {
+        "error": "Failed to parse AI response",
+        "raw_response": ""
+      },
+      "confidence": 0.95,
+      "analysis_successful": true,
+      "error_message": null,
+      "processing_time_ms": 14180,
+      "tokens_used": 0,
+      "input_tokens": null,
+      "output_tokens": null,
+      "estimated_cost": 0.0,
+      "config_id": null,
+      "task_id": null,
+      "session_id": "89f46966-342e-45b0-aba9-82fbeca0a8ea",
+      "user_initiated": true,
+      "created_at": "2025-07-02T11:58:20.02275+00:00",
+      "ip_address": null,
+      "user_agent": null,
+      "notes": "Test analysis via web interface",
+      "tags": null
+    },
+    {
+      "id": "0bce2d37-675c-47b6-9f2a-375bc06f32b5",
+      "image_id": "3969d142cb104e79fefb002d4b975c80",
+      "image_url": null,
+      "camera_name": "cam-02-highwayGate",
+      "captured_at": "2025-07-02T11:41:37.34102+00:00",
+      "analysis_type": "gate_detection",
+      "prompt_text": "You are analyzing a trail camera image from a ranch. Look for any gates in the image and determine their status.\n\nalso, make note of any people, animals, or vehicles in the scene, and add that anaysis to the people, animals, vehicles part of JSON.\n\nAnalyze the image and respond ONLY with valid JSON in this exact format:\n{\n  \"gate_visible\": true or false,\n  \"gate_open\": true or false (null if no gate visible),\n  \"confidence\": 0.0 to 1.0,\n  \"reasoning\": \"Detailed explanation of what you see in the image and why you made this decision\",\n  \"visual_evidence\": \"Specific visual details that support your conclusion (e.g., gate posts, hinges, gaps, shadows)\"\n  \"people, animals, vehicles\" : \"details about an people, animals, or vehicles you see, give color, size, gender, make and model, what is being transported, etc\"\n}",
+      "custom_prompt": false,
+      "model_provider": "gemini",
+      "model_name": "gemini-2.5-pro",
+      "model_temperature": 0.3,
+      "max_tokens": 500,
+      "raw_response": "",
+      "parsed_response": {},
+      "confidence": 0,
+      "analysis_successful": false,
+      "error_message": "Invalid operation: The `response.text` quick accessor requires the response to contain a valid `Part`, but none were returned. The candidate's [finish_reason](https://ai.google.dev/api/generate-content#finishreason) is 2.",
+      "processing_time_ms": 14180,
+      "tokens_used": 0,
+      "input_tokens": null,
+      "output_tokens": null,
+      "estimated_cost": null,
+      "config_id": null,
+      "task_id": null,
+      "session_id": "89f46966-342e-45b0-aba9-82fbeca0a8ea",
+      "user_initiated": true,
+      "created_at": "2025-07-02T11:58:19.958991+00:00",
+      "ip_address": null,
+      "user_agent": null,
+      "notes": null,
+      "tags": null
+    }
+  ],
+  "analysis_summary": {
+    "completeness": {
+      "total_records": 2,
+      "critical_fields": {
+        "image_id": {
+          "count": 2,
+          "percentage": 100.0
+        },
+        "analysis_type": {
+          "count": 2,
+          "percentage": 100.0
+        },
+        "prompt_text": {
+          "count": 2,
+          "percentage": 100.0
+        },
+        "model_provider": {
+          "count": 2,
+          "percentage": 100.0
+        },
+        "model_name": {
+          "count": 2,
+          "percentage": 100.0
+        },
+        "analysis_successful": {
+          "count": 2,
+          "percentage": 100.0
+        },
+        "created_at": {
+          "count": 2,
+          "percentage": 100.0
+        }
+      },
+      "optional_fields": {
+        "camera_name": {
+          "count": 2,
+          "percentage": 100.0
+        },
+        "captured_at": {
+          "count": 2,
+          "percentage": 100.0
+        },
+        "confidence": {
+          "count": 2,
+          "percentage": 100.0
+        },
+        "processing_time_ms": {
+          "count": 2,
+          "percentage": 100.0
+        },
+        "session_id": {
+          "count": 2,
+          "percentage": 100.0
+        },
+        "config_id": {
+          "count": 0,
+          "percentage": 0.0
+        },
+        "task_id": {
+          "count": 0,
+          "percentage": 0.0
+        },
+        "error_message": {
+          "count": 1,
+          "percentage": 50.0
+        }
+      },
+      "token_tracking": {
+        "has_tokens_used": 2,
+        "has_input_tokens": 0,
+        "has_output_tokens": 0,
+        "has_both_input_output": 0,
+        "has_estimated_cost": 1
+      },
+      "response_storage": {
+        "has_raw_response": 0,
+        "has_parsed_response": 1,
+        "raw_response_empty": 2,
+        "avg_raw_response_length": 0,
+        "custom_prompts": 1
+      }
+    },
+    "session_patterns": {
+      "total_sessions": 1,
+      "single_model_sessions": 1,
+      "multi_model_sessions": 0,
+      "session_details": []
+    },
+    "model_usage": {
+      "gemini:gemini-2.5-pro": {
+        "count": 2,
+        "successful": 1,
+        "failed": 1,
+        "total_tokens": 0,
+        "total_cost": 0,
+        "avg_confidence": 0.475,
+        "with_input_output_tokens": 0,
+        "avg_tokens": 0.0,
+        "avg_cost": 0.0,
+        "avg_processing_time_ms": 14180.0,
+        "min_processing_time_ms": 14180,
+        "max_processing_time_ms": 14180
+      }
+    },
+    "by_analysis_type": {
+      "gate_detection": {
+        "count": 2,
+        "models": [
+          "gemini:gemini-2.5-pro"
+        ],
+        "sessions": [
+          "89f46966-342e-45b0-aba9-82fbeca0a8ea"
+        ],
+        "avg_logs_per_session": 2.0
+      }
+    }
+  }
+}

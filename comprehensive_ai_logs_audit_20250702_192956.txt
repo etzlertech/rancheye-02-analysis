@@ -1,0 +1,79 @@
+====================================================================================================
+COMPREHENSIVE AI ANALYSIS LOGS AUDIT REPORT
+Generated: 2025-07-02 19:29:55
+====================================================================================================
+
+Total records in database: 2
+Records analyzed (last 30 days): 2
+
+1. DATA COMPLETENESS ANALYSIS
+--------------------------------------------------
+Total records analyzed: 2
+
+Critical Fields (should be 100%):
+  image_id                  2/2 (100.0%)
+  analysis_type             2/2 (100.0%)
+  prompt_text               2/2 (100.0%)
+  model_provider            2/2 (100.0%)
+  model_name                2/2 (100.0%)
+  analysis_successful       2/2 (100.0%)
+  created_at                2/2 (100.0%)
+
+Optional Fields:
+  camera_name               2/2 (100.0%)
+  captured_at               2/2 (100.0%)
+  confidence                2/2 (100.0%)
+  processing_time_ms        2/2 (100.0%)
+  session_id                2/2 (100.0%)
+  config_id                 0/2 (  0.0%)
+  task_id                   0/2 (  0.0%)
+  error_message             1/2 ( 50.0%)
+
+Token & Cost Tracking:
+  Has tokens_used:          2/2 (100.0%)
+  Has input_tokens:         0/2 (  0.0%)
+  Has output_tokens:        0/2 (  0.0%)
+  Has both I/O tokens:      0/2 (  0.0%)
+  Has estimated_cost:       1/2 ( 50.0%)
+
+Response Storage:
+  Has raw_response:         0/2 (  0.0%)
+  Empty raw_response:       2
+  Has parsed_response:      1/2 ( 50.0%)
+  Avg response length:      0 chars
+  Custom prompts:           1/2 ( 50.0%)
+
+2. SESSION ANALYSIS (Multi-Model Usage)
+--------------------------------------------------
+Total sessions with session_id: 1
+Single-model sessions: 1
+Multi-model sessions: 0
+
+3. MODEL USAGE ANALYSIS
+--------------------------------------------------
+Model                                  Count  Success   Failed Avg Tokens   Avg Cost Avg Conf
+----------------------------------------------------------------------------------------------------
+gemini:gemini-2.5-pro                      2        1        1          0 $ 0.000000     0.47
+
+4. ANALYSIS TYPE BREAKDOWN
+--------------------------------------------------
+
+gate_detection:
+  Total analyses: 2
+  Unique sessions: 1
+  Avg logs per session: 2.0
+  Models used: gemini:gemini-2.5-pro
+
+5. KEY FINDINGS SUMMARY
+--------------------------------------------------
+✗ No multi-model sessions found - may indicate:
+  - Multi-model feature not being used
+  - session_id not being properly set
+✓ image_id is being saved consistently (100.0%)
+✓ Exact prompts are being saved (100.0%)
+✓ Token tracking is good (100.0%)
+  ⚠ But input/output token split is low (0.0%)
+✗ Cost tracking is incomplete (50.0%)
+✗ Raw response storage is incomplete (0.0%)
+
+====================================================================================================

@@ -21,11 +21,15 @@ from src.services.analysis_service import AnalysisService
 from src.task_processor import TaskProcessor
 from src.providers.base import ImageData
 from dotenv import load_dotenv
+from src.api.image_analysis_history import router as history_router
 
 
 load_dotenv()
 
 app = FastAPI(title="RanchEye Analysis API", version="1.0.0")
+
+# Include routers
+app.include_router(history_router)
 
 # Mount static files
 static_dir = Path(__file__).parent.parent.parent / "static"

@@ -1,0 +1,84 @@
+================================================================================
+AI ANALYSIS LOGS AUDIT REPORT
+Generated: 2025-07-02 12:19:17
+================================================================================
+
+1. BASIC STATISTICS
+----------------------------------------
+Total records analyzed: 2
+Date range: 2025-07-02T11:58:19.958991+00:00 to 2025-07-02T11:58:20.02275+00:00
+
+2. FIELD COMPLETENESS ANALYSIS
+----------------------------------------
+Field                          Populated    %        Sample Value
+--------------------------------------------------------------------------------
+analysis_successful            2/2          100.0%   True
+analysis_type                  2/2          100.0%   'gate_detection'
+camera_name                    2/2          100.0%   'cam-02-highwayGate'
+captured_at                    2/2          100.0%   '2025-07-02T11:41:37.34102+00:00'
+confidence                     2/2          100.0%   0.95
+config_id                      0/2          0.0%     N/A
+created_at                     2/2          100.0%   '2025-07-02T11:58:20.02275+00:00'
+custom_prompt                  2/2          100.0%   True
+error_message                  1/2          50.0%    'Invalid operation: The `response.text` quick accessor requires the response to contain a valid `Part...'
+estimated_cost                 1/2          50.0%    0.0
+id                             2/2          100.0%   '07f8bbaa-58aa-43b4-becd-848c2decd7b9'
+image_id                       2/2          100.0%   '3969d142cb104e79fefb002d4b975c80'
+image_url                      1/2          50.0%    'https://s3.amazonaws.com/spypoint-production-account-ehcpvywr/67607ecd44b5e883fd44a4ba/6861ccbeac761...'
+input_tokens                   0/2          0.0%     N/A
+ip_address                     0/2          0.0%     N/A
+max_tokens                     2/2          100.0%   500
+model_name                     2/2          100.0%   'gemini-2.5-pro'
+model_provider                 2/2          100.0%   'gemini'
+model_temperature              2/2          100.0%   0.3
+notes                          1/2          50.0%    'Test analysis via web interface'
+output_tokens                  0/2          0.0%     N/A
+parsed_response                2/2          100.0%   {'error': 'Failed to parse AI response', 'raw_response': ''}
+processing_time_ms             2/2          100.0%   14180
+prompt_text                    2/2          100.0%   'You are analyzing a trail camera image from a ranch. Look for any gates in the image and determine t...'
+raw_response                   2/2          100.0%   ''
+session_id                     2/2          100.0%   '89f46966-342e-45b0-aba9-82fbeca0a8ea'
+tags                           0/2          0.0%     N/A
+task_id                        0/2          0.0%     N/A
+tokens_used                    2/2          100.0%   0
+user_agent                     0/2          0.0%     N/A
+user_initiated                 2/2          100.0%   True
+
+3. MULTI-MODEL ANALYSIS PATTERNS
+----------------------------------------
+No multi-model sessions found in recent data
+
+4. COST AND TOKEN TRACKING
+----------------------------------------
+Logs with token data: 2/2 (100.0%)
+Logs with input/output tokens: 0/2 (0.0%)
+Logs with cost data: 1/2 (50.0%)
+Total estimated cost: $0.000000
+
+Cost breakdown by model:
+Model                                    Count    Total Cost   Avg Cost     Avg Tokens
+--------------------------------------------------------------------------------
+gemini:gemini-2.5-pro                    1        $0.000000    $0.000000    0
+
+5. PROMPT AND RESPONSE STORAGE
+----------------------------------------
+Logs with prompt_text: 2/2 (100.0%)
+  - Custom prompts: 1
+  - Template prompts: 1
+  - Average prompt length: 821 characters
+
+Logs with raw_response: 0/2 (0.0%)
+  - Average response length: 0 characters
+
+Logs with parsed_response: 1/2 (50.0%)
+
+6. KEY FINDINGS SUMMARY
+----------------------------------------
+✗ No multi-model sessions found in recent data
+✓ image_id is being saved (100.0% populated)
+✓ Exact prompt_text is being saved for all analyses
+✓ Tokens are being tracked consistently
+✗ Cost tracking is incomplete (1/2)
+✗ Raw responses are missing for 2 records
+
+================================================================================

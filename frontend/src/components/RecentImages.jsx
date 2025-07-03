@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
+import ImageAnalysisHistory from './ImageAnalysisHistory';
 
 const RecentImages = ({ images, loading, onAnalyze }) => {
   const [imageLoadStates, setImageLoadStates] = useState({});
   const [showThumbnails, setShowThumbnails] = useState(true);
+  const [selectedImageHistory, setSelectedImageHistory] = useState(null);
   
   const handleImageLoad = (imageId) => {
     setImageLoadStates(prev => ({ ...prev, [imageId]: 'loaded' }));
@@ -88,12 +90,23 @@ const RecentImages = ({ images, loading, onAnalyze }) => {
                   <p className="text-xs text-gray-500">
                     {formatDistanceToNow(new Date(image.downloaded_at), { addSuffix: true })}
                   </p>
-                  <button
-                    onClick={() => onAnalyze(image.image_id)}
-                    className="mt-2 w-full bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm transition-colors"
-                  >
-                    Analyze
-                  </button>
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      onClick={() => onAnalyze(image.image_id)}
+                      className="flex-1 bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm transition-colors"
+                    >
+                      Analyze
+                    </button>
+                    {image.analysis_count > 0 && (
+                      <button
+                        onClick={() => setSelectedImageHistory(image.image_id)}
+                        className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm transition-colors"
+                        title="View analysis history"
+                      >
+                        <i className="fa fa-history"></i>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))
@@ -135,12 +148,23 @@ const RecentImages = ({ images, loading, onAnalyze }) => {
                       </span>
                     </td>
                     <td className="py-2">
-                      <button
-                        onClick={() => onAnalyze(image.image_id)}
-                        className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm"
-                      >
-                        Analyze
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => onAnalyze(image.image_id)}
+                          className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm"
+                        >
+                          Analyze
+                        </button>
+                        {image.analysis_count > 0 && (
+                          <button
+                            onClick={() => setSelectedImageHistory(image.image_id)}
+                            className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm"
+                            title="View analysis history"
+                          >
+                            <i className="fa fa-history"></i>
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -148,6 +172,14 @@ const RecentImages = ({ images, loading, onAnalyze }) => {
             </tbody>
           </table>
         </div>
+      )}
+      
+      {/* Analysis History Modal */}
+      {selectedImageHistory && (
+        <ImageAnalysisHistory
+          imageId={selectedImageHistory}
+          onClose={() => setSelectedImageHistory(null)}
+        />
       )}
     </div>
   );

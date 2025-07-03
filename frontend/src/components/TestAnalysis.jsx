@@ -895,9 +895,26 @@ Analyze the image and respond ONLY with valid JSON in this exact format:
           // Compare mode results
           <div className="mt-4 space-y-4">
             <h3 className="font-semibold text-lg">Model Comparison Results</h3>
-            {result.results.map((modelResult, idx) => (
-              <ModelResultCard key={idx} result={modelResult} image={result.image} />
-            ))}
+            {/* Show summary of successful vs failed */}
+            {(() => {
+              const successful = result.results.filter(r => !r.error);
+              const failed = result.results.filter(r => r.error);
+              return (
+                <>
+                  {failed.length > 0 && (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm">
+                      <i className="fa fa-warning text-yellow-600 mr-2"></i>
+                      {failed.length} model{failed.length > 1 ? 's' : ''} failed. 
+                      {successful.length > 0 && ` Showing ${successful.length} successful result${successful.length > 1 ? 's' : ''}.`}
+                    </div>
+                  )}
+                  {/* Always show all results, including failures */}
+                  {result.results.map((modelResult, idx) => (
+                    <ModelResultCard key={idx} result={modelResult} image={result.image} />
+                  ))}
+                </>
+              );
+            })()}
           </div>
         ) : result ? (
           // Single model result
