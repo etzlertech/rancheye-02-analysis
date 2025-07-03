@@ -93,7 +93,10 @@ const RecentImages = ({ images, loading, onAnalyze }) => {
                   <div className="flex gap-2 mt-2">
                     <button
                       onClick={() => onAnalyze(image.image_id)}
-                      className="flex-1 bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm transition-colors"
+                      className="flex-1 text-white px-3 py-1 rounded text-sm transition-colors"
+                      style={{ backgroundColor: '#6b7c3a' }}
+                      onMouseEnter={(e) => e.target.style.backgroundColor = '#5a6a2f'}
+                      onMouseLeave={(e) => e.target.style.backgroundColor = '#6b7c3a'}
                     >
                       Analyze
                     </button>
@@ -151,7 +154,10 @@ const RecentImages = ({ images, loading, onAnalyze }) => {
                       <div className="flex gap-2">
                         <button
                           onClick={() => onAnalyze(image.image_id)}
-                          className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm"
+                          className="text-white px-3 py-1 rounded text-sm transition-colors"
+                          style={{ backgroundColor: '#6b7c3a' }}
+                          onMouseEnter={(e) => e.target.style.backgroundColor = '#5a6a2f'}
+                          onMouseLeave={(e) => e.target.style.backgroundColor = '#6b7c3a'}
                         >
                           Analyze
                         </button>
