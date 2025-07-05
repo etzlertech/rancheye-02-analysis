@@ -2,7 +2,9 @@
 API endpoint for viewing analysis history for any image
 """
 from fastapi import APIRouter, HTTPException
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+from pydantic import BaseModel
+from datetime import datetime
 import os
 import sys
 
@@ -124,7 +126,9 @@ async def get_all_analysis_history(
                     'confidence': analysis.get('confidence'),
                     'tokens_used': analysis.get('tokens_used'),
                     'estimated_cost': analysis.get('estimated_cost'),
-                    'processing_time_ms': analysis.get('processing_time_ms')
+                    'processing_time_ms': analysis.get('processing_time_ms'),
+                    'quality_rating': analysis.get('quality_rating'),
+                    'user_notes': analysis.get('user_notes')
                 })
                 
                 sessions_map[session_id]['total_cost'] += analysis.get('estimated_cost', 0) or 0
@@ -148,6 +152,10 @@ async def get_all_analysis_history(
                     'processing_time_ms': analysis.get('processing_time_ms'),
                     'prompt_text': analysis.get('prompt_text'),
                     'custom_prompt': analysis.get('custom_prompt'),
+                    'quality_rating': analysis.get('quality_rating'),
+                    'user_notes': analysis.get('user_notes'),
+                    'notes_updated_at': analysis.get('notes_updated_at'),
+                    'parsed_response': analysis.get('parsed_response'),
                     'is_session': False
                 })
         
@@ -303,6 +311,86 @@ async def get_session_details(image_id: str, session_id: str) -> Dict[str, Any]:
                     'processing_time_ms': a.get('processing_time_ms')
                 } for a in analyses
             ]
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Pydantic models for request validation
+class UpdateRatingRequest(BaseModel):
+    quality_rating: int
+    
+    class Config:
+        json_schema_extra = {
+            "example": {"quality_rating": 4}
+        }
+
+
+class UpdateNotesRequest(BaseModel):
+    user_notes: str
+    
+    class Config:
+        json_schema_extra = {
+            "example": {"user_notes": "Good detection but missed one animal in background"}
+        }
+
+
+@router.patch("/analysis/{analysis_id}/rating")
+async def update_analysis_rating(analysis_id: str, request: UpdateRatingRequest) -> Dict[str, Any]:
+    """
+    Update the quality rating for a specific analysis
+    Rating must be between 1 and 5
+    """
+    try:
+        # Validate rating
+        if request.quality_rating < 1 or request.quality_rating > 5:
+            raise HTTPException(status_code=400, detail="Rating must be between 1 and 5")
+        
+        # Update the rating
+        response = supabase.client.table('ai_analysis_logs').update({
+            'quality_rating': request.quality_rating,
+            'notes_updated_at': datetime.utcnow().isoformat()
+        }).eq('id', analysis_id).execute()
+        
+        if not response.data:
+            raise HTTPException(status_code=404, detail="Analysis not found")
+        
+        return {
+            'success': True,
+            'analysis_id': analysis_id,
+            'quality_rating': request.quality_rating,
+            'updated_at': datetime.utcnow().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch("/analysis/{analysis_id}/notes")
+async def update_analysis_notes(analysis_id: str, request: UpdateNotesRequest) -> Dict[str, Any]:
+    """
+    Update the user notes for a specific analysis
+    """
+    try:
+        # Update the notes
+        response = supabase.client.table('ai_analysis_logs').update({
+            'user_notes': request.user_notes,
+            'notes_updated_at': datetime.utcnow().isoformat()
+        }).eq('id', analysis_id).execute()
+        
+        if not response.data:
+            raise HTTPException(status_code=404, detail="Analysis not found")
+        
+        return {
+            'success': True,
+            'analysis_id': analysis_id,
+            'user_notes': request.user_notes,
+            'updated_at': datetime.utcnow().isoformat()
         }
         
     except HTTPException:
