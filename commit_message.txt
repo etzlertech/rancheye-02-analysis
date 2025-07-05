@@ -1,0 +1,9 @@
+Change RanchEye logo eye icon to olive green
+
+- Updated eye icon color from green-600 to #6b7c3a (olive green)
+- Matches the Analyze button color for consistent branding
+- Applied to both React Header component and old HTML file
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>

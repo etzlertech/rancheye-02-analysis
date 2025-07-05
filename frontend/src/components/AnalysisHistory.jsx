@@ -33,8 +33,13 @@ const AnalysisHistory = ({ onClose }) => {
   useEffect(() => {
     // Group analyses by image_id
     const grouped = {};
-    console.log('Processing history:', history.length, 'items', history);
-    history.forEach(item => {
+    
+    if (!history || history.length === 0) {
+      setGroupedData({});
+      return;
+    }
+    
+    history.forEach((item) => {
       const imageId = item.image_id;
       if (!imageId) return;
       
@@ -52,7 +57,7 @@ const AnalysisHistory = ({ onClose }) => {
         // For multi-model sessions, expand each model into a separate analysis
         item.models.forEach(model => {
           grouped[imageId].analyses.push({
-            id: model.id || `${item.session_id}-${model.model_name}`, // Use actual ID if available
+            id: model.id || `${item.session_id}-${model.model_name}`,
             image_id: imageId,
             image_url: item.image_url,
             camera_name: item.camera_name,
@@ -79,8 +84,14 @@ const AnalysisHistory = ({ onClose }) => {
         grouped[imageId].analyses.push(item);
       }
     });
-    console.log('Grouped data:', Object.keys(grouped).length, 'images');
+    
     setGroupedData(grouped);
+    
+    // Auto-expand first image for better UX
+    if (Object.keys(grouped).length > 0 && expandedImages.size === 0) {
+      const firstImageId = Object.keys(grouped)[0];
+      setExpandedImages(new Set([firstImageId]));
+    }
   }, [history]);
 
   const loadHistory = async () => {
@@ -96,11 +107,11 @@ const AnalysisHistory = ({ onClose }) => {
       if (filters.cameraName) params.append('camera_name', filters.cameraName);
 
       const response = await api.get(`/api/analysis-history?${params}`);
-      setHistory(response.data.analyses);
-      setSummary(response.data.summary);
+      setHistory(response.data.analyses || []);
+      setSummary(response.data.summary || {});
       setPagination(prev => ({
         ...prev,
-        totalCount: response.data.total_count
+        totalCount: response.data.total_count || 0
       }));
     } catch (error) {
       console.error('Error loading analysis history:', error);
@@ -314,7 +325,16 @@ const AnalysisHistory = ({ onClose }) => {
               <p className="text-sm text-gray-400 mt-2">Try adjusting your filters or run some analyses first</p>
             </div>
           ) : (
-            Object.entries(groupedData).map(([imageId, imageData]) => {
+            <>
+              {expandedImages.size === 0 && (
+                <div className="text-center py-4 mb-4 bg-blue-50 rounded">
+                  <p className="text-blue-700">
+                    Found {Object.keys(groupedData).length} images with analyses. 
+                    Click on an image to expand and see details, or use "Expand All" button above.
+                  </p>
+                </div>
+              )}
+              {Object.entries(groupedData).map(([imageId, imageData]) => {
             const isExpanded = expandedImages.has(imageId);
             const analyses = imageData.analyses;
             const successCount = analyses.filter(a => a.analysis_successful).length;
@@ -494,7 +514,8 @@ const AnalysisHistory = ({ onClose }) => {
                 )}
               </div>
             );
-          })
+          })}
+            </>
           )}
         </div>
 
