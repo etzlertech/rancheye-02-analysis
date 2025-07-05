@@ -5,6 +5,7 @@ import RecentImages from './RecentImages';
 import AnalysisResults from './AnalysisResults';
 import ActiveAlerts from './ActiveAlerts';
 import TestAnalysis from './TestAnalysis';
+import AnalysisHistory from './AnalysisHistory';
 import api from '../utils/api';
 
 const Dashboard = () => {
@@ -66,6 +67,7 @@ const Dashboard = () => {
   };
 
   const [selectedImageForAnalysis, setSelectedImageForAnalysis] = useState(null);
+  const [showAnalysisHistory, setShowAnalysisHistory] = useState(false);
 
   const handleAnalyze = async (imageId) => {
     // Find the image by ID and pass it to TestAnalysis
@@ -88,7 +90,7 @@ const Dashboard = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <Header />
+      <Header onShowHistory={() => setShowAnalysisHistory(true)} />
       
       {/* Test Analysis Section - At Top */}
       <div className="mb-6">
@@ -125,6 +127,11 @@ const Dashboard = () => {
       
       {/* Stats Cards - Moved to Bottom */}
       <StatsCards />
+      
+      {/* Analysis History Modal */}
+      {showAnalysisHistory && (
+        <AnalysisHistory onClose={() => setShowAnalysisHistory(false)} />
+      )}
     </div>
   );
 };

@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-router = APIRouter(prefix="/api/images", tags=["image-history"])
+router = APIRouter(prefix="/api", tags=["image-history"])
 
 # Initialize Supabase client
 supabase = SupabaseClient(
@@ -22,7 +22,172 @@ supabase = SupabaseClient(
 )
 
 
-@router.get("/{image_id}/analysis-history")
+@router.get("/analysis-history")
+async def get_all_analysis_history(
+    limit: int = 100,
+    offset: int = 0,
+    analysis_type: str = None,
+    model_provider: str = None,
+    camera_name: str = None
+) -> Dict[str, Any]:
+    """
+    Get analysis history for all images with filtering options
+    Returns analysis logs with image information and thumbnails
+    """
+    try:
+        # Build query - first get the analysis logs
+        query = supabase.client.table('ai_analysis_logs').select('*')
+        
+        # Apply filters
+        if analysis_type:
+            query = query.eq('analysis_type', analysis_type)
+        if model_provider:
+            query = query.eq('model_provider', model_provider)
+        if camera_name:
+            query = query.eq('camera_name', camera_name)
+            
+        # Add pagination and ordering
+        query = query.order('created_at', desc=True).range(offset, offset + limit - 1)
+        
+        response = query.execute()
+        analyses = response.data if response.data else []
+        
+        # Get unique image IDs from the analyses
+        image_ids = list(set(a['image_id'] for a in analyses if a.get('image_id')))
+        
+        # Fetch image data separately
+        image_data = {}
+        if image_ids:
+            images_response = supabase.client.table('spypoint_images').select(
+                'image_id, storage_path, camera_name, downloaded_at'
+            ).in_('image_id', image_ids).execute()
+            
+            for img in (images_response.data or []):
+                image_data[img['image_id']] = img
+        
+        # Get total count for pagination
+        count_query = supabase.client.table('ai_analysis_logs').select('*', count='exact')
+        if analysis_type:
+            count_query = count_query.eq('analysis_type', analysis_type)
+        if model_provider:
+            count_query = count_query.eq('model_provider', model_provider)
+        if camera_name:
+            count_query = count_query.eq('camera_name', camera_name)
+        
+        count_response = count_query.execute()
+        total_count = count_response.count if hasattr(count_response, 'count') else len(analyses)
+        
+        # Process results to include image URLs and group by session
+        processed_results = []
+        sessions_map = {}
+        
+        for analysis in analyses:
+            # Add image info from our lookup
+            if analysis.get('image_id') and analysis['image_id'] in image_data:
+                img_info = image_data[analysis['image_id']]
+                # Generate the full image URL from storage path
+                storage_path = img_info.get('storage_path')
+                if storage_path:
+                    # Construct the public URL for the image
+                    analysis['image_url'] = f"{os.getenv('SUPABASE_URL')}/storage/v1/object/public/{storage_path}"
+                else:
+                    analysis['image_url'] = analysis.get('image_url')
+                analysis['camera_name'] = img_info.get('camera_name') or analysis.get('camera_name')
+                analysis['captured_at'] = img_info.get('downloaded_at')
+            else:
+                analysis['image_url'] = analysis.get('image_url')
+                analysis['captured_at'] = None
+            
+            # Group by session if applicable
+            session_id = analysis.get('session_id')
+            if session_id:
+                if session_id not in sessions_map:
+                    sessions_map[session_id] = {
+                        'session_id': session_id,
+                        'image_id': analysis['image_id'],
+                        'image_url': analysis['image_url'],
+                        'camera_name': analysis['camera_name'],
+                        'captured_at': analysis['captured_at'],
+                        'created_at': analysis['created_at'],
+                        'analysis_type': analysis['analysis_type'],
+                        'prompt_text': analysis['prompt_text'],
+                        'custom_prompt': analysis['custom_prompt'],
+                        'models': [],
+                        'total_cost': 0,
+                        'total_tokens': 0
+                    }
+                
+                sessions_map[session_id]['models'].append({
+                    'model_provider': analysis['model_provider'],
+                    'model_name': analysis['model_name'],
+                    'success': analysis['analysis_successful'],
+                    'confidence': analysis.get('confidence'),
+                    'tokens_used': analysis.get('tokens_used'),
+                    'estimated_cost': analysis.get('estimated_cost'),
+                    'processing_time_ms': analysis.get('processing_time_ms')
+                })
+                
+                sessions_map[session_id]['total_cost'] += analysis.get('estimated_cost', 0) or 0
+                sessions_map[session_id]['total_tokens'] += analysis.get('tokens_used', 0) or 0
+            else:
+                # Standalone analysis
+                processed_results.append({
+                    'id': analysis['id'],
+                    'image_id': analysis['image_id'],
+                    'image_url': analysis['image_url'],
+                    'camera_name': analysis['camera_name'],
+                    'captured_at': analysis['captured_at'],
+                    'created_at': analysis['created_at'],
+                    'analysis_type': analysis['analysis_type'],
+                    'model_provider': analysis['model_provider'],
+                    'model_name': analysis['model_name'],
+                    'analysis_successful': analysis['analysis_successful'],
+                    'confidence': analysis.get('confidence'),
+                    'tokens_used': analysis.get('tokens_used'),
+                    'estimated_cost': analysis.get('estimated_cost'),
+                    'processing_time_ms': analysis.get('processing_time_ms'),
+                    'prompt_text': analysis.get('prompt_text'),
+                    'custom_prompt': analysis.get('custom_prompt'),
+                    'is_session': False
+                })
+        
+        # Add sessions to results
+        for session in sessions_map.values():
+            processed_results.append({
+                **session,
+                'is_session': True
+            })
+        
+        # Sort by created_at
+        processed_results.sort(key=lambda x: x['created_at'], reverse=True)
+        
+        # Get summary stats
+        stats_response = supabase.client.table('ai_analysis_logs').select(
+            'analysis_successful, estimated_cost'
+        ).execute()
+        
+        all_analyses = stats_response.data if stats_response.data else []
+        total_cost = sum(a.get('estimated_cost', 0) or 0 for a in all_analyses)
+        successful_count = sum(1 for a in all_analyses if a.get('analysis_successful'))
+        
+        return {
+            'analyses': processed_results[:limit],
+            'total_count': total_count,
+            'page_size': limit,
+            'offset': offset,
+            'summary': {
+                'total_analyses': len(all_analyses),
+                'successful_analyses': successful_count,
+                'failed_analyses': len(all_analyses) - successful_count,
+                'total_cost': round(total_cost, 6)
+            }
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/images/{image_id}/analysis-history")
 async def get_image_analysis_history(image_id: str) -> Dict[str, Any]:
     """
     Get complete analysis history for a specific image
@@ -98,7 +263,7 @@ async def get_image_analysis_history(image_id: str) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/{image_id}/analysis-history/{session_id}")
+@router.get("/images/{image_id}/analysis-history/{session_id}")
 async def get_session_details(image_id: str, session_id: str) -> Dict[str, Any]:
     """
     Get detailed results for a specific analysis session
