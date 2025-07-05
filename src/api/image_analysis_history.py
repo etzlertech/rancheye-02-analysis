@@ -120,6 +120,7 @@ async def get_all_analysis_history(
                     }
                 
                 sessions_map[session_id]['models'].append({
+                    'id': analysis['id'],  # Include the analysis ID
                     'model_provider': analysis['model_provider'],
                     'model_name': analysis['model_name'],
                     'success': analysis['analysis_successful'],
@@ -128,7 +129,8 @@ async def get_all_analysis_history(
                     'estimated_cost': analysis.get('estimated_cost'),
                     'processing_time_ms': analysis.get('processing_time_ms'),
                     'quality_rating': analysis.get('quality_rating'),
-                    'user_notes': analysis.get('user_notes')
+                    'user_notes': analysis.get('user_notes'),
+                    'parsed_response': analysis.get('parsed_response')
                 })
                 
                 sessions_map[session_id]['total_cost'] += analysis.get('estimated_cost', 0) or 0

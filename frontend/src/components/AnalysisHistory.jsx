@@ -33,21 +33,53 @@ const AnalysisHistory = ({ onClose }) => {
   useEffect(() => {
     // Group analyses by image_id
     const grouped = {};
+    console.log('Processing history:', history.length, 'items', history);
     history.forEach(item => {
-      if (!item.is_session) {
-        const imageId = item.image_id;
-        if (!grouped[imageId]) {
-          grouped[imageId] = {
+      const imageId = item.image_id;
+      if (!imageId) return;
+      
+      if (!grouped[imageId]) {
+        grouped[imageId] = {
+          image_id: imageId,
+          image_url: item.image_url,
+          camera_name: item.camera_name,
+          captured_at: item.captured_at,
+          analyses: []
+        };
+      }
+      
+      if (item.is_session && item.models) {
+        // For multi-model sessions, expand each model into a separate analysis
+        item.models.forEach(model => {
+          grouped[imageId].analyses.push({
+            id: model.id || `${item.session_id}-${model.model_name}`, // Use actual ID if available
             image_id: imageId,
             image_url: item.image_url,
             camera_name: item.camera_name,
             captured_at: item.captured_at,
-            analyses: []
-          };
-        }
+            created_at: item.created_at,
+            analysis_type: item.analysis_type,
+            model_provider: model.model_provider,
+            model_name: model.model_name,
+            analysis_successful: model.success,
+            confidence: model.confidence,
+            tokens_used: model.tokens_used,
+            estimated_cost: model.estimated_cost,
+            processing_time_ms: model.processing_time_ms,
+            prompt_text: item.prompt_text,
+            custom_prompt: item.custom_prompt,
+            quality_rating: model.quality_rating,
+            user_notes: model.user_notes,
+            parsed_response: model.parsed_response,
+            session_id: item.session_id
+          });
+        });
+      } else if (!item.is_session) {
+        // Individual analysis
         grouped[imageId].analyses.push(item);
       }
     });
+    console.log('Grouped data:', Object.keys(grouped).length, 'images');
     setGroupedData(grouped);
   }, [history]);
 
@@ -275,7 +307,14 @@ const AnalysisHistory = ({ onClose }) => {
 
         {/* Main Content - Grouped Grid */}
         <div className="flex-1 overflow-y-auto">
-          {Object.entries(groupedData).map(([imageId, imageData]) => {
+          {Object.keys(groupedData).length === 0 ? (
+            <div className="text-center py-12">
+              <i className="fa fa-folder-open text-6xl text-gray-300 mb-4"></i>
+              <p className="text-lg text-gray-500">No analysis history found</p>
+              <p className="text-sm text-gray-400 mt-2">Try adjusting your filters or run some analyses first</p>
+            </div>
+          ) : (
+            Object.entries(groupedData).map(([imageId, imageData]) => {
             const isExpanded = expandedImages.has(imageId);
             const analyses = imageData.analyses;
             const successCount = analyses.filter(a => a.analysis_successful).length;
@@ -455,7 +494,8 @@ const AnalysisHistory = ({ onClose }) => {
                 )}
               </div>
             );
-          })}
+          })
+          )}
         </div>
 
         {/* Pagination */}
