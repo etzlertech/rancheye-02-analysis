@@ -663,15 +663,15 @@ async def test_analysis(request: dict):
             # Download image from storage
             try:
                 image_bytes = await supabase.download_image(image_metadata['storage_path'])
-        except Exception as e:
-            # If storage path fails, try the image URL
-            if 'image_url' in image_metadata:
-                import httpx
-                async with httpx.AsyncClient() as client:
-                    response = await client.get(image_metadata['image_url'])
-                    image_bytes = response.content
-            else:
-                raise HTTPException(status_code=500, detail=f"Cannot download image: {str(e)}")
+            except Exception as e:
+                # If storage path fails, try the image URL
+                if 'image_url' in image_metadata:
+                    import httpx
+                    async with httpx.AsyncClient() as client:
+                        response = await client.get(image_metadata['image_url'])
+                        image_bytes = response.content
+                else:
+                    raise HTTPException(status_code=500, detail=f"Cannot download image: {str(e)}")
         
         # Create ImageData object
         from src.providers.base import ImageData
