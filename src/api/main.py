@@ -320,19 +320,15 @@ async def get_recent_images(limit: int = 20, thumbnail: bool = False, include_pi
                 # Fetch some Pi Zero images (limit to half of requested to balance sources)
                 pi_zero_limit = min(limit // 2, 10)
                 
-                files = supabase.client.storage.from_('pi-zero-images').list(
-                    path='',
-                    options={
-                        'limit': pi_zero_limit,
-                        'offset': 0,
-                        'sortBy': {'column': 'created_at', 'order': 'desc'}
-                    }
-                )
+                # List files from pi-zero-images bucket
+                files = supabase.client.storage.from_('pi-zero-images').list()
                 
-                print(f"Found {len(files)} files in pi-zero-images bucket")
+                print(f"Found {len(files) if files else 0} files in pi-zero-images bucket")
+                if files:
+                    print(f"First few files: {[f.get('name', 'unknown') for f in files[:3]]}")
                 
                 # Convert Pi Zero files to image format
-                for file in files:
+                for file in (files or [])[:pi_zero_limit]:
                     if file['name'].lower().endswith(('.jpg', '.jpeg', '.png')):
                         try:
                             signed_url = supabase.client.storage.from_('pi-zero-images').create_signed_url(
@@ -388,14 +384,7 @@ async def get_pi_zero_images(limit: int = 20):
         
         # List files in the pi-zero-images bucket
         try:
-            files = supabase.client.storage.from_('pi-zero-images').list(
-                path='',
-                options={
-                    'limit': limit,
-                    'offset': 0,
-                    'sortBy': {'column': 'created_at', 'order': 'desc'}
-                }
-            )
+            files = supabase.client.storage.from_('pi-zero-images').list()
             
             print(f"Found {len(files)} files in pi-zero-images bucket")
             
