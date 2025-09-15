@@ -29,6 +29,7 @@ COPY frontend/package*.json ./frontend/
 WORKDIR /app/frontend
 RUN npm install
 COPY frontend/ .
+RUN mkdir -p ../static
 RUN npm run build
 WORKDIR /app
 
