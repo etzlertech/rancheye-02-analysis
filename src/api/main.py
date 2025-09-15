@@ -12,6 +12,7 @@ import os
 import sys
 import uuid
 import time
+import aiohttp
 from functools import lru_cache
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -243,7 +244,7 @@ async def delete_config(config_id: str):
 
 
 @app.get("/api/images/recent")
-async def get_recent_images(limit: int = 20, thumbnail: bool = False):
+async def get_recent_images(limit: int = 20, thumbnail: bool = False, include_pi_zero: bool = True):
     try:
         print(f"Fetching recent images with limit: {limit}, thumbnail: {thumbnail}")
         import time
@@ -311,6 +312,61 @@ async def get_recent_images(limit: int = 20, thumbnail: bool = False):
                           f"{img['image_id']}:{img.get('storage_path', '')}" in url_cache)
         
         print(f"URLs: {cached_count} cached, {len(images) - cached_count} generated in {time.time() - url_start_time:.2f}s")
+        
+        # Optionally fetch Pi Zero images
+        if include_pi_zero:
+            try:
+                pi_zero_start = time.time()
+                # Fetch some Pi Zero images (limit to half of requested to balance sources)
+                pi_zero_limit = min(limit // 2, 10)
+                
+                files = supabase.client.storage.from_('pi-zero-images').list(
+                    path='',
+                    options={
+                        'limit': pi_zero_limit,
+                        'offset': 0,
+                        'sortBy': {'column': 'created_at', 'order': 'desc'}
+                    }
+                )
+                
+                print(f"Found {len(files)} files in pi-zero-images bucket")
+                
+                # Convert Pi Zero files to image format
+                for file in files:
+                    if file['name'].lower().endswith(('.jpg', '.jpeg', '.png')):
+                        try:
+                            signed_url = supabase.client.storage.from_('pi-zero-images').create_signed_url(
+                                file['name'],
+                                3600  # 1 hour expiration
+                            )
+                            
+                            pi_zero_image = {
+                                'image_id': f"pizero_{file['name'].replace('.', '_')}",
+                                'camera_name': 'PiZero-01',
+                                'storage_path': file['name'],
+                                'image_url': signed_url['signedURL'] if signed_url and 'signedURL' in signed_url else None,
+                                'downloaded_at': file.get('created_at', datetime.utcnow().isoformat()),
+                                'metadata': {
+                                    'source': 'pi-zero-images',
+                                    'file_size': file.get('metadata', {}).get('size', 0),
+                                    'original_name': file['name']
+                                }
+                            }
+                            images.append(pi_zero_image)
+                        except Exception as e:
+                            print(f"Error processing Pi Zero image {file['name']}: {e}")
+                            
+                print(f"Added {len(files)} Pi Zero images in {time.time() - pi_zero_start:.2f}s")
+            except Exception as e:
+                print(f"Error fetching Pi Zero images: {e}")
+                # Continue without Pi Zero images
+        
+        # Sort all images by downloaded_at
+        images.sort(key=lambda x: x.get('downloaded_at', ''), reverse=True)
+        
+        # Limit to requested number
+        images = images[:limit]
+        
         print(f"Total request time: {time.time() - start_time:.2f}s")
         
         # Add cache headers to response
@@ -319,6 +375,71 @@ async def get_recent_images(limit: int = 20, thumbnail: bool = False):
         return response
     except Exception as e:
         print(f"Error fetching images: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/images/pi-zero/recent")
+async def get_pi_zero_images(limit: int = 20):
+    """Get recent images from pi-zero-images bucket"""
+    try:
+        print(f"Fetching recent Pi Zero images with limit: {limit}")
+        import time
+        start_time = time.time()
+        
+        # List files in the pi-zero-images bucket
+        try:
+            files = supabase.client.storage.from_('pi-zero-images').list(
+                path='',
+                options={
+                    'limit': limit,
+                    'offset': 0,
+                    'sortBy': {'column': 'created_at', 'order': 'desc'}
+                }
+            )
+            
+            print(f"Found {len(files)} files in pi-zero-images bucket")
+            
+            # Convert to image format similar to spypoint_images
+            images = []
+            for idx, file in enumerate(files):
+                if file['name'].lower().endswith(('.jpg', '.jpeg', '.png')):
+                    # Generate signed URL
+                    try:
+                        signed_url = supabase.client.storage.from_('pi-zero-images').create_signed_url(
+                            file['name'],
+                            3600  # 1 hour expiration
+                        )
+                        
+                        image_data = {
+                            'image_id': f"pizero_{file['name'].replace('.', '_')}",
+                            'camera_name': 'PiZero-01',
+                            'storage_path': file['name'],
+                            'image_url': signed_url['signedURL'] if signed_url and 'signedURL' in signed_url else None,
+                            'downloaded_at': file.get('created_at', datetime.utcnow().isoformat()),
+                            'metadata': {
+                                'source': 'pi-zero-images',
+                                'file_size': file.get('metadata', {}).get('size', 0),
+                                'original_name': file['name']
+                            }
+                        }
+                        images.append(image_data)
+                    except Exception as e:
+                        print(f"Error generating URL for {file['name']}: {e}")
+                        continue
+            
+            print(f"Generated {len(images)} image entries in {time.time() - start_time:.2f}s")
+            
+            # Add cache headers to response
+            response = JSONResponse(content={"images": images})
+            response.headers["Cache-Control"] = "public, max-age=30"
+            return response
+            
+        except Exception as e:
+            print(f"Error accessing pi-zero-images bucket: {e}")
+            raise HTTPException(status_code=500, detail=f"Error accessing pi-zero-images bucket: {str(e)}")
+            
+    except Exception as e:
+        print(f"Error fetching Pi Zero images: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -361,7 +482,26 @@ async def debug_image_url(image_id: str):
 async def get_image_preview(image_id: str):
     """Get image preview/thumbnail"""
     try:
-        # Get image metadata
+        # Handle Pi Zero images
+        if image_id.startswith('pizero_'):
+            # Extract original filename from image_id
+            original_filename = image_id[7:].replace('_', '.')
+            
+            # Generate signed URL for Pi Zero image
+            try:
+                signed_url = supabase.client.storage.from_('pi-zero-images').create_signed_url(
+                    original_filename,
+                    3600  # 1 hour
+                )
+                if signed_url and 'signedURL' in signed_url:
+                    from fastapi.responses import RedirectResponse
+                    return RedirectResponse(url=signed_url['signedURL'])
+                else:
+                    raise Exception("Failed to generate signed URL")
+            except Exception as e:
+                raise HTTPException(status_code=404, detail=f"Pi Zero image not accessible: {str(e)}")
+        
+        # Get image metadata for regular images
         image_metadata = await supabase.get_image_metadata(image_id)
         if not image_metadata:
             raise HTTPException(status_code=404, detail="Image not found")
@@ -485,13 +625,44 @@ async def test_analysis(request: dict):
             raise HTTPException(status_code=400, detail="image_id required")
         
         # Get image metadata
-        image_metadata = await supabase.get_image_metadata(image_id)
-        if not image_metadata:
-            raise HTTPException(status_code=404, detail="Image not found")
-        
-        # Download image from storage
-        try:
-            image_bytes = await supabase.download_image(image_metadata['storage_path'])
+        if image_id.startswith('pizero_'):
+            # Handle Pi Zero images differently
+            # Extract original filename from image_id
+            original_filename = image_id[7:].replace('_', '.')  # Remove 'pizero_' prefix and restore dots
+            
+            # Create metadata for Pi Zero image
+            image_metadata = {
+                'image_id': image_id,
+                'camera_name': 'PiZero-01',
+                'storage_path': original_filename,
+                'metadata': {
+                    'source': 'pi-zero-images'
+                }
+            }
+            
+            # Download image from pi-zero-images bucket
+            try:
+                # Generate signed URL for download
+                signed_url = supabase.client.storage.from_('pi-zero-images').create_signed_url(
+                    original_filename,
+                    300  # 5 minutes
+                )
+                
+                # Download image bytes
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(signed_url['signedURL']) as response:
+                        image_bytes = await response.read()
+            except Exception as e:
+                raise HTTPException(status_code=404, detail=f"Failed to download Pi Zero image: {str(e)}")
+        else:
+            # Regular Spypoint image handling
+            image_metadata = await supabase.get_image_metadata(image_id)
+            if not image_metadata:
+                raise HTTPException(status_code=404, detail="Image not found")
+            
+            # Download image from storage
+            try:
+                image_bytes = await supabase.download_image(image_metadata['storage_path'])
         except Exception as e:
             # If storage path fails, try the image URL
             if 'image_url' in image_metadata:
